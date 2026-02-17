@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
-// GET — Fetch all test results for a user (replaces cloudSyncResults)
 export async function GET(req: NextRequest) {
   const email = req.headers.get('x-user-email');
   if (!email) {
     return NextResponse.json({ error: 'Email required' }, { status: 400 });
   }
-
   try {
     const results = await prisma.testResult.findMany({
       where: { email },
       orderBy: { timestamp: 'desc' },
       take: 100,
     });
-
     return NextResponse.json({ results });
   } catch (err: any) {
     console.error('Sync results error:', err);
@@ -22,26 +19,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST — Save a test result (replaces cloudSaveTestResult)
 export async function POST(req: NextRequest) {
   const email = req.headers.get('x-user-email');
   if (!email) {
     return NextResponse.json({ error: 'Email required' }, { status: 400 });
   }
-
   try {
     const body = await req.json();
     const { testId, level, score, total, percentage, section, timestamp, ...rest } = body;
-
-    // Find user by email (optional — results can be saved by email alone)
     const user = await prisma.user.findUnique({ where: { email } });
-
-    const result = await prisma.testResult.upsert({
-      where: { id: body.id || '00000000-0000-0000-0000-000000000000' },
-      create: {
+    const result = await prisma.testResult.create({
+      data: {
         email,
         userId: user?.id,
-        testId: testId || `test_${Date.now()}`,
+        testId: testId || ('test_' + Date.now()),
         level,
         score,
         total,
@@ -50,14 +41,7 @@ export async function POST(req: NextRequest) {
         timestamp: timestamp ? new Date(timestamp) : new Date(),
         data: rest,
       },
-      update: {
-        score,
-        total,
-        percentage,
-        data: rest,
-      },
     });
-
     return NextResponse.json({ saved: true, id: result.id });
   } catch (err: any) {
     console.error('Save result error:', err);
