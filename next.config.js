@@ -8,7 +8,7 @@ const nextConfig = {
         headers: [
           { key: 'Access-Control-Allow-Origin', value: process.env.CLIENT_URL || '*' },
           { key: 'Access-Control-Allow-Methods', value: 'GET, POST, OPTIONS' },
-          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, x-user-id, x-cron-secret' },
+          { key: 'Access-Control-Allow-Headers', value: 'Content-Type, x-user-id, x-user-email, x-cron-secret' },
         ],
       },
     ];
