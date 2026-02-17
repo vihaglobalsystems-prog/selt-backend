@@ -3,11 +3,8 @@ import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
 
-// CRITICAL: Disable Next.js body parsing — Stripe needs the raw body
-// to verify the webhook signature
-export const config = {
-  api: { bodyParser: false },
-};
+// In App Router, body parsing is NOT automatic — req.text() gives us
+// the raw body directly, which is what Stripe needs for signature verification.
 
 export async function POST(req: NextRequest) {
   // 1. Get the raw body and signature
