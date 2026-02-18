@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
 import { validateAdmin } from '@/lib/admin';
+import { sendRefundEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   const auth = validateAdmin(req);
@@ -63,6 +64,11 @@ export async function POST(req: NextRequest) {
         status: stripeRefund.status || 'succeeded',
       },
     });
+
+    // Send refund confirmation email
+    if (payment.user && payment.userId) {
+      sendRefundEmail({ id: payment.userId, email: payment.user.email, name: payment.user.name || '' }, stripeRefund.amount, reason);
+    }
 
     return NextResponse.json({
       success: true,
