@@ -23,13 +23,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
 
-    if (!payment.stripePaymentIntent) {
-      return NextResponse.json({ error: 'No Stripe payment intent for this payment' }, { status: 400 });
+    let paymentIntentId = payment.stripePaymentIntent;
+
+    // If payment intent is missing, try to fetch it from Stripe via invoice
+    if (!paymentIntentId && payment.stripeInvoiceId) {
+      try {
+        const invoice = await stripe.invoices.retrieve(payment.stripeInvoiceId);
+        if (invoice.payment_intent) {
+          paymentIntentId = invoice.payment_intent as string;
+          // Save it for future use
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: { stripePaymentIntent: paymentIntentId },
+          });
+        }
+      } catch (e) {
+        console.error('Could not fetch invoice from Stripe:', e);
+      }
+    }
+
+    if (!paymentIntentId) {
+      return NextResponse.json({ error: 'No Stripe payment intent found. Cannot process refund.' }, { status: 400 });
     }
 
     // Create refund in Stripe
-    const refundParams: any = { payment_intent: payment.stripePaymentIntent };
-    if (amount) refundParams.amount = Math.round(amount * 100); // Convert pounds to pence
+    const refundParams: any = { payment_intent: paymentIntentId };
+    if (amount) refundParams.amount = Math.round(amount * 100);
     if (reason) refundParams.reason = 'requested_by_customer';
 
     const stripeRefund = await stripe.refunds.create(refundParams);
