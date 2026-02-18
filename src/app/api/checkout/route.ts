@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
           quantity: 1,
         },
       ],
-      success_url: `${process.env.CLIENT_URL}/subscription/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.CLIENT_URL}/subscription/cancel`,
+      success_url: `${process.env.CLIENT_URL}/?payment=success`,
+      cancel_url: `${process.env.CLIENT_URL}/?payment=cancel`,
       metadata: { userId: user.id },
     });
 
