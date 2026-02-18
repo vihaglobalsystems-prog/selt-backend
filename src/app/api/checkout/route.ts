@@ -4,19 +4,33 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId } = await req.json();
+    const body = await req.json();
+    const email = body.email;
+    const userId = body.userId;
 
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    // Support both email-based and userId-based lookup
+    let user;
+    if (email) {
+      user = await prisma.user.findUnique({ where: { email } });
+      // Auto-create user if they don't exist yet (signed in via Google on frontend)
+      if (!user) {
+        user = await prisma.user.create({
+          data: {
+            email,
+            name: body.name || email.split('@')[0],
+            role: 'user',
+          },
+        });
+      }
+    } else if (userId) {
+      user = await prisma.user.findUnique({ where: { id: userId } });
     }
 
-    // 1. Find the user in our database
-    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+      return NextResponse.json({ error: 'User not found. Please provide email or userId.' }, { status: 400 });
     }
 
-    // 2. Create or retrieve Stripe customer
+    // Create or retrieve Stripe customer
     let stripeCustomerId = user.stripeCustomerId;
 
     if (!stripeCustomerId) {
@@ -27,14 +41,13 @@ export async function POST(req: NextRequest) {
       });
       stripeCustomerId = customer.id;
 
-      // Save Stripe customer ID to our database
       await prisma.user.update({
         where: { id: user.id },
         data: { stripeCustomerId, updatedAt: new Date() },
       });
     }
 
-    // 3. Create a Stripe Checkout Session for subscription
+    // Create a Stripe Checkout Session for subscription
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: 'subscription',
@@ -50,7 +63,6 @@ export async function POST(req: NextRequest) {
       metadata: { userId: user.id },
     });
 
-    // 4. Return the checkout URL to redirect the user
     return NextResponse.json({
       sessionId: session.id,
       url: session.url,
