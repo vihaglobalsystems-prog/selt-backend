@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: adminEmails,
-      reply_to: from,
+      replyTo: from,
       subject: `[Inbound] ${subject}`,
       html: htmlBody
         ? `
