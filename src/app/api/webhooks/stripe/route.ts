@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
+import { sendSubscriptionConfirmation, sendAdminNewSubscription } from '@/lib/email';
 
 // In App Router, body parsing is NOT automatic — req.text() gives us
 // the raw body directly, which is what Stripe needs for signature verification.
@@ -96,6 +97,12 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   });
 
   console.log(`✓ Subscription created for ${user.email}`);
+
+  // Send welcome email to the new subscriber
+  await sendSubscriptionConfirmation({ id: user.id, email: user.email, name: user.name });
+
+  // Notify admin(s) of the new subscriber
+  await sendAdminNewSubscription({ email: user.email, name: user.name });
 }
 
 async function handleInvoicePaid(invoice: Stripe.Invoice) {
