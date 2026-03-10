@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
-import { sendSubscriptionConfirmation, sendAdminNewSubscription } from '@/lib/email';
+import { sendSubscriptionConfirmation, sendAdminNewSubscription, sendRefundEmail } from '@/lib/email';
 
 // In App Router, body parsing is NOT automatic — req.text() gives us
 // the raw body directly, which is what Stripe needs for signature verification.
@@ -47,6 +47,10 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.deleted':
         await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'charge.refunded':
+        await handleChargeRefunded(event.data.object as Stripe.Charge);
         break;
 
       default:
@@ -224,4 +228,48 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
   });
 
   console.log(`✓ Subscription canceled: ${subscription.id}`);
+}
+
+async function handleChargeRefunded(charge: Stripe.Charge) {
+  // A charge was refunded (either via Stripe dashboard or our API).
+  // Sync the refund record to the database and notify the customer.
+
+  if (!charge.refunds?.data?.length) return;
+
+  // Find the user by customer ID
+  const user = charge.customer
+    ? await prisma.user.findUnique({ where: { stripeCustomerId: charge.customer as string } })
+    : null;
+
+  for (const refund of charge.refunds.data) {
+    // Avoid duplicate records — only create if not already stored
+    const existing = await prisma.refund.findUnique({ where: { stripeRefundId: refund.id } });
+    if (existing) continue;
+
+    // Find the related payment record
+    const payment = charge.invoice
+      ? await prisma.payment.findUnique({ where: { stripeInvoiceId: charge.invoice as string } })
+      : null;
+
+    await prisma.refund.create({
+      data: {
+        paymentId: payment?.id ?? null,
+        stripeRefundId: refund.id,
+        amount: refund.amount,
+        reason: refund.reason || 'requested_by_customer',
+        status: refund.status || 'succeeded',
+      },
+    });
+
+    // Send confirmation email to customer
+    if (user) {
+      await sendRefundEmail(
+        { id: user.id, email: user.email, name: user.name || '' },
+        refund.amount,
+        refund.reason || undefined
+      ).catch((e) => console.warn('Refund email failed:', e));
+    }
+
+    console.log(`✓ Refund synced: ${refund.id} — £${(refund.amount / 100).toFixed(2)}`);
+  }
 }
