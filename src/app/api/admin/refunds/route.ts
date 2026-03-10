@@ -4,6 +4,35 @@ import { stripe } from '@/lib/stripe';
 import { validateAdmin } from '@/lib/admin';
 import { sendRefundEmail } from '@/lib/email';
 
+export async function GET(req: NextRequest) {
+  const auth = validateAdmin(req);
+  if (!auth.valid) return auth.error!;
+
+  try {
+    const url   = new URL(req.url);
+    const page  = Math.max(1, parseInt(url.searchParams.get('page')  || '1'));
+    const limit = Math.min(50, parseInt(url.searchParams.get('limit') || '20'));
+    const skip  = (page - 1) * limit;
+
+    const [refunds, total] = await Promise.all([
+      prisma.refund.findMany({
+        skip, take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          payment: {
+            include: { user: { select: { id: true, email: true, name: true } } },
+          },
+        },
+      }),
+      prisma.refund.count(),
+    ]);
+
+    return NextResponse.json({ refunds, total, page, totalPages: Math.ceil(total / limit) });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Failed to load refunds' }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   const auth = validateAdmin(req);
   if (!auth.valid) return auth.error!;
