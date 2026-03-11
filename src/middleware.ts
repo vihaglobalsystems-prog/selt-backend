@@ -10,7 +10,7 @@ export function middleware(req: NextRequest) {
       status: 204,
       headers: {
         'Access-Control-Allow-Origin': allowedOrigin,
-        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, x-user-id, x-user-email, x-admin-email, x-cron-secret',
         'Access-Control-Max-Age': '86400',
       },
@@ -20,7 +20,7 @@ export function middleware(req: NextRequest) {
   // Add CORS headers to all API responses
   const response = NextResponse.next();
   response.headers.set('Access-Control-Allow-Origin', allowedOrigin);
-  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, x-user-id, x-user-email, x-admin-email, x-cron-secret');
   return response;
 }
