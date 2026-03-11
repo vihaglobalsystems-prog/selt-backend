@@ -1,14 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-
-// ─── Admin auth ───────────────────────────────────────────────────────────────
-function validateAdmin(req: NextRequest) {
-  const key = req.headers.get('x-admin-key');
-  if (key !== process.env.ADMIN_SECRET_KEY) {
-    return { valid: false, error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  }
-  return { valid: true, error: null };
-}
+import { validateAdmin } from '@/lib/admin';
 
 // ─── JWT helpers for Google service account auth ─────────────────────────────
 function base64url(input: Buffer | string): string {
