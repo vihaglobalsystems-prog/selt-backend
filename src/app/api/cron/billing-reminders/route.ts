@@ -2,15 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { sendBillingReminder } from '@/lib/email';
 
-export async function POST(req: NextRequest) {
-  // 1. Verify the cron secret (so only your cron service can trigger this)
-  const cronSecret = req.headers.get('x-cron-secret');
+async function runBillingReminders(req: NextRequest) {
+  // Verify the cron secret — check header or query param (Resend sends GET with secret in header)
+  const cronSecret =
+    req.headers.get('x-cron-secret') ||
+    new URL(req.url).searchParams.get('secret');
   if (cronSecret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    // 2. Find subscriptions renewing within the next 7 days
+    // Find subscriptions renewing within the next 7 days
     const now = new Date();
     const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest) {
     for (const sub of expiringSubscriptions) {
       if (!sub.user || !sub.currentPeriodEnd) continue;
 
-      // 3. Check if we already sent a reminder for this billing period
+      // Check if we already sent a reminder for this billing period
       const alreadySent = await prisma.emailLog.findFirst({
         where: {
           userId: sub.user.id,
@@ -44,7 +46,7 @@ export async function POST(req: NextRequest) {
 
       if (alreadySent) continue;
 
-      // 4. Send the reminder
+      // Send the reminder
       const success = await sendBillingReminder(
         { id: sub.user.id, email: sub.user.email, name: sub.user.name },
         sub.currentPeriodEnd
@@ -60,4 +62,14 @@ export async function POST(req: NextRequest) {
     console.error('Cron error:', err);
     return NextResponse.json({ error: 'Cron job failed' }, { status: 500 });
   }
+}
+
+// GET — used by Resend cron jobs (sends GET requests)
+export async function GET(req: NextRequest) {
+  return runBillingReminders(req);
+}
+
+// POST — kept for manual triggers or other cron services
+export async function POST(req: NextRequest) {
+  return runBillingReminders(req);
 }
