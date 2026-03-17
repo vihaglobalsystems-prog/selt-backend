@@ -22,7 +22,7 @@ export async function sendBillingReminder(user: { id: string; email: string; nam
           <p>Hi ${user.name},</p>
           <p>This is a friendly reminder that your <strong>SELT Premium</strong> subscription
           will automatically renew on <strong>${formattedDate}</strong>.</p>
-          <p>Your card on file will be charged <strong>£12.99</strong>.</p>
+          <p>Your card on file will be charged <strong>£4.99</strong>.</p>
           <p>If you wish to manage your subscription or update your payment method,
           please visit your account on
           <a href="https://seltmocktest.co.uk/account">seltmocktest.co.uk</a>.</p>
@@ -39,7 +39,7 @@ export async function sendBillingReminder(user: { id: string; email: string; nam
       data: {
         userId: user.id,
         emailType: 'billing_reminder',
-        metadata: { renewalDate: formattedDate, amount: 1299 },
+        metadata: { renewalDate: formattedDate, amount: 499 },
       },
     });
 
@@ -106,7 +106,7 @@ export async function sendSubscriptionConfirmation(user: { id: string; email: st
             <li>Detailed SWOT feedback after every test</li>
             <li>Full progress tracking and score history</li>
           </ul>
-          <p>Your subscription is <strong>£12.99/month</strong> and will renew automatically. You'll receive a reminder 7 days before each renewal.</p>
+          <p>Your subscription is <strong>£4.99/month</strong> and will renew automatically. You'll receive a reminder 7 days before each renewal.</p>
           <p style="margin-top: 24px;">
             <a href="https://seltmocktest.co.uk" style="background: #1e40af; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
               Start Practising Now →
