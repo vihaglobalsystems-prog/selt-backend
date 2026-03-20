@@ -185,6 +185,80 @@ export async function sendAdminNewSubscription(user: { email: string; name: stri
   }
 }
 
+export async function sendEngagementNudge(user: { id: string; email: string; name: string }, testsTaken: number) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+  const isFirstNudge = testsTaken === 0;
+
+  const subject = isFirstNudge
+    ? 'Your free SELT mock test is waiting — take it now'
+    : 'You have 1 more free test left on SELT Mock Test';
+
+  const ctaText = isFirstNudge
+    ? 'Start Your Free Test Now'
+    : 'Take Your 2nd Free Test';
+
+  const bodyIntro = isFirstNudge
+    ? `<p>You signed up for SELT Mock Test but haven't taken your first free practice exam yet.</p>
+       <p>Your <strong>2 free full mock tests</strong> are ready and waiting — no payment needed. Each test covers all 4 sections: Listening, Reading, Writing, and Speaking, just like the real SELT exam.</p>`
+    : `<p>Great news — you've already completed your first free SELT mock test!</p>
+       <p>You still have <strong>1 more free full test</strong> available. Use it to track your progress and see which areas need more practice before the real exam.</p>`;
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
+      to: user.email,
+      subject,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 800;">SELT Mock Test</h1>
+            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Practice for the Skills for English Language Test</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p>Hi ${firstName},</p>
+            ${bodyIntro}
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 20px; margin: 24px 0;">
+              <p style="margin: 0 0 8px; font-weight: 700; color: #0369a1;">What's included in each free test:</p>
+              <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.8;">
+                <li>🎧 Listening — audio comprehension questions</li>
+                <li>📖 Reading — passage understanding</li>
+                <li>✍️ Writing — structured response tasks</li>
+                <li>🎤 Speaking — recorded oral responses</li>
+              </ul>
+            </div>
+            <p>After your test, you'll get a detailed score breakdown and SWOT analysis to help you focus your preparation.</p>
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; display: inline-block;">
+                ${ctaText} →
+              </a>
+            </div>
+            <p style="color: #64748b; font-size: 13px;">The test takes about 45–60 minutes. Make sure you're in a quiet place with a working microphone for the Speaking section.</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+              SELT Mock Test | seltmocktest.co.uk<br>
+              <a href="https://seltmocktest.co.uk" style="color: #94a3b8;">Unsubscribe</a>
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        userId: user.id,
+        emailType: 'engagement_nudge',
+        metadata: { testsTaken },
+      },
+    });
+
+    console.log(`✓ Engagement nudge sent to ${user.email} (tests taken: ${testsTaken})`);
+    return true;
+  } catch (err) {
+    console.error(`✗ Failed to send engagement nudge to ${user.email}:`, err);
+    return false;
+  }
+}
+
 export async function sendCancellationEmail(user: { id: string; email: string; name: string }, immediate: boolean, periodEnd?: Date | null) {
   const endDate = periodEnd ? periodEnd.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
