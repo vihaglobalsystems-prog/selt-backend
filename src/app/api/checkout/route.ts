@@ -12,7 +12,6 @@ export async function POST(req: NextRequest) {
     let user;
     if (email) {
       user = await prisma.user.findUnique({ where: { email } });
-      // Auto-create user if they don't exist yet (signed in via Google on frontend)
       if (!user) {
         user = await prisma.user.create({
           data: {
@@ -47,10 +46,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create a Stripe Checkout Session for subscription
+    // Create a Stripe Checkout Session for one-time payment
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      mode: 'subscription',
+      mode: 'payment',
       payment_method_types: ['card'],
       line_items: [
         {

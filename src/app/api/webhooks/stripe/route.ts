@@ -2,19 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
-import { sendSubscriptionConfirmation, sendAdminNewSubscription, sendRefundEmail } from '@/lib/email';
-
-// In App Router, body parsing is NOT automatic — req.text() gives us
-// the raw body directly, which is what Stripe needs for signature verification.
+import { sendPaymentConfirmation, sendAdminNewSubscription, sendRefundEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
-  // 1. Get the raw body and signature
   const body = await req.text();
   const sig = req.headers.get('stripe-signature')!;
 
   let event: Stripe.Event;
 
-  // 2. Verify the webhook signature (prevents fake events)
   try {
     event = stripe.webhooks.constructEvent(
       body,
@@ -26,27 +21,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  // 3. Handle each event type
   try {
     switch (event.type) {
       case 'checkout.session.completed':
         await handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
-        break;
-
-      case 'invoice.paid':
-        await handleInvoicePaid(event.data.object as Stripe.Invoice);
-        break;
-
-      case 'invoice.payment_failed':
-        await handleInvoiceFailed(event.data.object as Stripe.Invoice);
-        break;
-
-      case 'customer.subscription.updated':
-        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
-        break;
-
-      case 'customer.subscription.deleted':
-        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
 
       case 'charge.refunded':
@@ -64,10 +42,13 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// --- Event Handlers ---
-
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
-  // Find user by Stripe customer ID
+  // Only handle one-time payment sessions
+  if (session.mode !== 'payment') {
+    console.log('Skipping non-payment session:', session.mode);
+    return;
+  }
+
   const user = await prisma.user.findUnique({
     where: { stripeCustomerId: session.customer as string },
   });
@@ -76,177 +57,62 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // Fetch the full subscription from Stripe
-  const stripeSub = await stripe.subscriptions.retrieve(session.subscription as string);
-
-  // Save subscription to our database
-  await prisma.subscription.upsert({
-    where: { stripeSubscriptionId: stripeSub.id },
+  // Record the payment
+  const paymentIntentId = session.payment_intent as string;
+  await prisma.payment.upsert({
+    where: { stripeInvoiceId: session.id },
     create: {
       userId: user.id,
-      stripeSubscriptionId: stripeSub.id,
-      stripePriceId: stripeSub.items.data[0].price.id,
-      status: stripeSub.status,
-      currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
-      currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
-      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+      stripeInvoiceId: session.id,           // reuse invoice field to store session ID
+      stripePaymentIntent: paymentIntentId,
+      amount: session.amount_total ?? 499,
+      currency: session.currency ?? 'gbp',
+      status: 'paid',
+      paidAt: new Date(),
     },
     update: {
-      status: stripeSub.status,
-      currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
-      currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
-      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+      status: 'paid',
+      paidAt: new Date(),
+    },
+  });
+
+  // Create a lifetime "subscription" record so existing access checks still work
+  const FAR_FUTURE = new Date('2099-12-31T23:59:59Z');
+  await prisma.subscription.upsert({
+    where: { stripeSubscriptionId: 'onetime_' + session.id },
+    create: {
+      userId: user.id,
+      stripeSubscriptionId: 'onetime_' + session.id,
+      stripePriceId: process.env.STRIPE_PRICE_ID ?? 'one_time',
+      status: 'active',
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: FAR_FUTURE,
+      cancelAtPeriodEnd: false,
+    },
+    update: {
+      status: 'active',
+      currentPeriodEnd: FAR_FUTURE,
       updatedAt: new Date(),
     },
   });
 
-  console.log(`✓ Subscription created for ${user.email}`);
+  console.log(`✓ One-time payment + lifetime access granted for ${user.email}`);
 
-  // Send welcome email to the new subscriber
-  await sendSubscriptionConfirmation({ id: user.id, email: user.email, name: user.name });
-
-  // Notify admin(s) of the new subscriber
+  await sendPaymentConfirmation({ id: user.id, email: user.email, name: user.name });
   await sendAdminNewSubscription({ email: user.email, name: user.name });
 }
 
-async function handleInvoicePaid(invoice: Stripe.Invoice) {
-  const user = await prisma.user.findUnique({
-    where: { stripeCustomerId: invoice.customer as string },
-  });
-  if (!user) return;
-
-  // Find the matching subscription in our DB
-  const sub = invoice.subscription
-    ? await prisma.subscription.findUnique({
-        where: { stripeSubscriptionId: invoice.subscription as string },
-      })
-    : null;
-
-  // Record the payment
-  await prisma.payment.upsert({
-    where: { stripeInvoiceId: invoice.id },
-    create: {
-      userId: user.id,
-      subscriptionId: sub?.id,
-      stripeInvoiceId: invoice.id,
-      stripePaymentIntent: invoice.payment_intent as string,
-      amount: invoice.amount_paid,
-      currency: invoice.currency,
-      status: 'paid',
-      paidAt: new Date(),
-    },
-    update: {
-      status: 'paid',
-      paidAt: new Date(),
-    },
-  });
-
-  // Update subscription period dates (for renewals)
-  if (sub && invoice.subscription) {
-    const stripeSub = await stripe.subscriptions.retrieve(invoice.subscription as string);
-    await prisma.subscription.update({
-      where: { id: sub.id },
-      data: {
-        status: stripeSub.status,
-        currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
-        currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
-        updatedAt: new Date(),
-      },
-    });
-  }
-
-  console.log(`✓ Payment recorded for ${user.email}: ${invoice.amount_paid} ${invoice.currency}`);
-}
-
-async function handleInvoiceFailed(invoice: Stripe.Invoice) {
-  const user = await prisma.user.findUnique({
-    where: { stripeCustomerId: invoice.customer as string },
-  });
-  if (!user) return;
-
-  const sub = invoice.subscription
-    ? await prisma.subscription.findUnique({
-        where: { stripeSubscriptionId: invoice.subscription as string },
-      })
-    : null;
-
-  // Record the failed payment
-  await prisma.payment.upsert({
-    where: { stripeInvoiceId: invoice.id },
-    create: {
-      userId: user.id,
-      subscriptionId: sub?.id,
-      stripeInvoiceId: invoice.id,
-      stripePaymentIntent: invoice.payment_intent as string,
-      amount: invoice.amount_due,
-      currency: invoice.currency,
-      status: 'failed',
-    },
-    update: { status: 'failed' },
-  });
-
-  console.log(`✗ Payment failed for ${user.email}`);
-}
-
-async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
-  const user = await prisma.user.findUnique({
-    where: { stripeCustomerId: subscription.customer as string },
-  });
-  if (!user) return;
-
-  await prisma.subscription.upsert({
-    where: { stripeSubscriptionId: subscription.id },
-    create: {
-      userId: user.id,
-      stripeSubscriptionId: subscription.id,
-      stripePriceId: subscription.items.data[0].price.id,
-      status: subscription.status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-    },
-    update: {
-      status: subscription.status,
-      currentPeriodStart: new Date(subscription.current_period_start * 1000),
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-      cancelAtPeriodEnd: subscription.cancel_at_period_end,
-      updatedAt: new Date(),
-    },
-  });
-
-  console.log(`✓ Subscription updated: ${subscription.status}`);
-}
-
-async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-  await prisma.subscription.update({
-    where: { stripeSubscriptionId: subscription.id },
-    data: {
-      status: 'canceled',
-      canceledAt: new Date(),
-      updatedAt: new Date(),
-    },
-  });
-
-  console.log(`✓ Subscription canceled: ${subscription.id}`);
-}
-
 async function handleChargeRefunded(charge: Stripe.Charge) {
-  // A charge was refunded (either via Stripe dashboard or our API).
-  // Sync the refund record to the database and notify the customer.
-
   if (!charge.refunds?.data?.length) return;
 
-  // Find the user by customer ID
   const user = charge.customer
     ? await prisma.user.findUnique({ where: { stripeCustomerId: charge.customer as string } })
     : null;
 
   for (const refund of charge.refunds.data) {
-    // Avoid duplicate records — only create if not already stored
     const existing = await prisma.refund.findUnique({ where: { stripeRefundId: refund.id } });
     if (existing) continue;
 
-    // Find the related payment record
     const payment = charge.invoice
       ? await prisma.payment.findUnique({ where: { stripeInvoiceId: charge.invoice as string } })
       : null;
@@ -261,8 +127,17 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
       },
     });
 
-    // Send confirmation email to customer
+    // If refunded, revoke lifetime access
     if (user) {
+      await prisma.subscription.updateMany({
+        where: {
+          userId: user.id,
+          stripeSubscriptionId: { startsWith: 'onetime_' },
+          status: 'active',
+        },
+        data: { status: 'canceled', canceledAt: new Date(), updatedAt: new Date() },
+      });
+
       await sendRefundEmail(
         { id: user.id, email: user.email, name: user.name || '' },
         refund.amount,

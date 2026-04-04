@@ -89,34 +89,40 @@ export async function sendRefundEmail(user: { id: string; email: string; name: s
   }
 }
 
-export async function sendSubscriptionConfirmation(user: { id: string; email: string; name: string }) {
+export async function sendPaymentConfirmation(user: { id: string; email: string; name: string }) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: user.email,
-      subject: 'Welcome to SELT Mock Test Premium! 🎉',
+      subject: 'You now have full access to SELT Mock Test 🎉',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1e40af;">You're now a Premium member!</h2>
-          <p>Hi ${user.name || 'there'},</p>
-          <p>Thank you for subscribing to <strong>SELT Mock Test Premium</strong>. Your account has been upgraded and you now have full access to:</p>
-          <ul>
-            <li>Unlimited practice tests for all CEFR levels (A1–C2)</li>
-            <li>AI-powered speaking and writing analysis</li>
-            <li>Detailed SWOT feedback after every test</li>
-            <li>Full progress tracking and score history</li>
-          </ul>
-          <p>Your subscription is <strong>£4.99/month</strong> and will renew automatically. You'll receive a reminder 7 days before each renewal.</p>
-          <p style="margin-top: 24px;">
-            <a href="https://seltmocktest.co.uk" style="background: #1e40af; color: white; padding: 12px 24px; border-radius: 8px; text-decoration: none; font-weight: bold;">
-              Start Practising Now →
-            </a>
-          </p>
-          <p style="margin-top: 24px; color: #6b7280; font-size: 13px;">
-            If you have any questions, reply to this email or contact us at support@seltmocktest.co.uk.
-          </p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 12px;">SELT Mock Test | seltmocktest.co.uk</p>
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 800;">SELT Mock Test</h1>
+            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Full Access Confirmed</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p>Hi ${firstName},</p>
+            <p>Thank you for your payment of <strong>£4.99</strong>. You now have <strong>lifetime full access</strong> to SELT Mock Test — no renewals, no monthly charges, ever.</p>
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 20px; margin: 24px 0;">
+              <p style="margin: 0 0 8px; font-weight: 700; color: #0369a1;">Your full access includes:</p>
+              <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.8;">
+                <li>Unlimited mock tests for all CEFR levels (A1–C2)</li>
+                <li>AI-powered speaking and writing analysis</li>
+                <li>Detailed SWOT feedback after every test</li>
+                <li>Full progress tracking and score history</li>
+              </ul>
+            </div>
+            <div style="text-align: center; margin: 32px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; display: inline-block;">
+                Start Practising Now →
+              </a>
+            </div>
+            <p style="color: #64748b; font-size: 13px;">If you have any questions, reply to this email or contact us at support@seltmocktest.co.uk.</p>
+            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">SELT Mock Test | seltmocktest.co.uk</p>
+          </div>
         </div>
       `,
     });
@@ -124,15 +130,15 @@ export async function sendSubscriptionConfirmation(user: { id: string; email: st
     await prisma.emailLog.create({
       data: {
         userId: user.id,
-        emailType: 'subscription_confirmation',
-        metadata: {},
+        emailType: 'payment_confirmation',
+        metadata: { amount: 499 },
       },
     });
 
-    console.log(`✓ Subscription confirmation sent to ${user.email}`);
+    console.log(`✓ Payment confirmation sent to ${user.email}`);
     return true;
   } catch (err) {
-    console.error(`✗ Failed to send subscription confirmation to ${user.email}:`, err);
+    console.error(`✗ Failed to send payment confirmation to ${user.email}:`, err);
     return false;
   }
 }
@@ -187,21 +193,27 @@ export async function sendAdminNewSubscription(user: { email: string; name: stri
 
 export async function sendEngagementNudge(user: { id: string; email: string; name: string }, testsTaken: number) {
   const firstName = user.name ? user.name.split(' ')[0] : 'there';
-  const isFirstNudge = testsTaken === 0;
 
-  const subject = isFirstNudge
-    ? 'Your free SELT mock test is waiting — take it now'
-    : 'You have 1 more free test left on SELT Mock Test';
+  let subject: string;
+  let ctaText: string;
+  let bodyIntro: string;
 
-  const ctaText = isFirstNudge
-    ? 'Start Your Free Test Now'
-    : 'Take Your 2nd Free Test';
-
-  const bodyIntro = isFirstNudge
-    ? `<p>You signed up for SELT Mock Test but haven't taken your first free practice exam yet.</p>
-       <p>Your <strong>2 free full mock tests</strong> are ready and waiting — no payment needed. Each test covers all 4 sections: Listening, Reading, Writing, and Speaking, just like the real SELT exam.</p>`
-    : `<p>Great news — you've already completed your first free SELT mock test!</p>
+  if (testsTaken === 0) {
+    subject = 'Your free SELT mock test is waiting — take it now';
+    ctaText = 'Start Your Free Test Now';
+    bodyIntro = `<p>You signed up for SELT Mock Test but haven't taken your first free practice exam yet.</p>
+       <p>Your <strong>2 free full mock tests</strong> are ready and waiting — no payment needed. Each test covers all 4 sections: Listening, Reading, Writing, and Speaking, just like the real SELT exam.</p>`;
+  } else if (testsTaken === 1) {
+    subject = 'You have 1 more free test left on SELT Mock Test';
+    ctaText = 'Take Your 2nd Free Test';
+    bodyIntro = `<p>Great news — you've already completed your first free SELT mock test!</p>
        <p>You still have <strong>1 more free full test</strong> available. Use it to track your progress and see which areas need more practice before the real exam.</p>`;
+  } else {
+    subject = 'Unlock unlimited SELT practice for just £4.99 — one-time payment';
+    ctaText = 'Unlock Full Access — £4.99';
+    bodyIntro = `<p>You've completed both your free SELT mock tests — great work!</p>
+       <p>To keep practising and sit unlimited full mock tests across all CEFR levels (A1–C2), unlock full access for a <strong>one-time payment of just £4.99</strong>. No subscription, no monthly charges — pay once and practise as much as you need.</p>`;
+  }
 
   try {
     await resend.emails.send({
@@ -218,15 +230,16 @@ export async function sendEngagementNudge(user: { id: string; email: string; nam
             <p>Hi ${firstName},</p>
             ${bodyIntro}
             <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 20px; margin: 24px 0;">
-              <p style="margin: 0 0 8px; font-weight: 700; color: #0369a1;">What's included in each free test:</p>
+              <p style="margin: 0 0 8px; font-weight: 700; color: #0369a1;">${testsTaken >= 2 ? 'Full access includes:' : 'What\'s included in each free test:'}</p>
               <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.8;">
                 <li>🎧 Listening — audio comprehension questions</li>
                 <li>📖 Reading — passage understanding</li>
                 <li>✍️ Writing — structured response tasks</li>
                 <li>🎤 Speaking — recorded oral responses</li>
+                ${testsTaken >= 2 ? '<li>📊 Unlimited tests across all CEFR levels (A1–C2)</li><li>🔍 Detailed SWOT analysis after every test</li>' : ''}
               </ul>
             </div>
-            <p>After your test, you'll get a detailed score breakdown and SWOT analysis to help you focus your preparation.</p>
+            <p>${testsTaken >= 2 ? 'One payment of £4.99 — no subscription, no recurring charges.' : 'After your test, you\'ll get a detailed score breakdown and SWOT analysis to help you focus your preparation.'}</p>
             <div style="text-align: center; margin: 32px 0;">
               <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; display: inline-block;">
                 ${ctaText} →
