@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SELT Admin Portal</title>
   <meta name="robots" content="noindex,nofollow" />
-  <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.16/tailwindcss.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
@@ -1135,6 +1135,7 @@ function GATraffic() {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
+  useEffect(() => { const bl = document.getElementById('boot-loader'); if (bl) bl.style.display = 'none'; }, []);
   const [admin, setAdmin]           = useState(() => JSON.parse(localStorage.getItem('selt_admin') || 'null'));
   const [view, setView]             = useState('dashboard');
   const [selectedUserId, setUserId] = useState(null);
@@ -1217,8 +1218,7 @@ function App() {
 const rootEl = document.getElementById('root');
 ReactDOM.createRoot(rootEl).render(<App />);
 // Hide boot loader once React has rendered
-const _bl = document.getElementById('boot-loader');
-if (_bl) { requestAnimationFrame(() => requestAnimationFrame(() => { _bl.style.display = 'none'; })); }
+// boot-loader hidden via App useEffect
 </script>
 </body>
 </html>
