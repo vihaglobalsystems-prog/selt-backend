@@ -142,7 +142,7 @@ export async function sendSubscriptionConfirmation(user: { id: string; email: st
   }
 }
 
-export async function sendAdminNewSubscription(user: { email: string; name: string }) {
+export async function sendAdminNewSubscription(user: { id: string; email: string; name: string }) {
   const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
   if (adminEmails.length === 0) return false;
 
@@ -180,6 +180,14 @@ export async function sendAdminNewSubscription(user: { email: string; name: stri
           <p style="color: #6b7280; font-size: 12px;">SELT Mock Test | automated notification</p>
         </div>
       `,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        userId: user.id,
+        emailType: 'admin_new_subscription',
+        metadata: { notifiedEmails: adminEmails.length },
+      },
     });
 
     console.log(`✓ Admin notified of new subscription from ${user.email}`);

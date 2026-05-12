@@ -95,7 +95,7 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   console.log(`✓ Subscription created for ${user.email} — ${stripeSubId}`);
 
   await sendSubscriptionConfirmation({ id: user.id, email: user.email, name: user.name });
-  await sendAdminNewSubscription({ email: user.email, name: user.name });
+  await sendAdminNewSubscription({ id: user.id, email: user.email, name: user.name });
 }
 
 // ── Monthly invoice paid — keep period end in sync ────────────────────────────
