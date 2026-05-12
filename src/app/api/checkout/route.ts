@@ -46,10 +46,10 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create a Stripe Checkout Session for one-time payment
+    // Create a Stripe Checkout Session for monthly subscription
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
-      mode: 'payment',
+      mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [
         {

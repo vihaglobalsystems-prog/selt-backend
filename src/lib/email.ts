@@ -15,17 +15,16 @@ export async function sendBillingReminder(user: { id: string; email: string; nam
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: user.email,
-      subject: 'SELT Mock Test - Your subscription renews soon',
+      subject: 'SELT Mock Test - Your access reminder',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #1e40af;">Subscription Renewal Reminder</h2>
           <p>Hi ${user.name},</p>
-          <p>This is a friendly reminder that your <strong>SELT Premium</strong> subscription
-          will automatically renew on <strong>${formattedDate}</strong>.</p>
-          <p>Your card on file will be charged <strong>£4.99</strong>.</p>
-          <p>If you wish to manage your subscription or update your payment method,
-          please visit your account on
-          <a href="https://seltmocktest.co.uk/account">seltmocktest.co.uk</a>.</p>
+          <p>This is a friendly reminder that your <strong>SELT Mock Test</strong> subscription
+          renews on <strong>${formattedDate}</strong>.</p>
+          <p>Your subscription gives you unlimited access to all mock tests at <strong>£0.99/month</strong>. You can cancel anytime from your Profile page.</p>
+          <p>If you have any questions, please contact us at
+          <a href="mailto:support@seltmocktest.co.uk">support@seltmocktest.co.uk</a>.</p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
           <p style="color: #6b7280; font-size: 12px;">
             SELT Mock Test | seltmocktest.co.uk
@@ -89,24 +88,24 @@ export async function sendRefundEmail(user: { id: string; email: string; name: s
   }
 }
 
-export async function sendPaymentConfirmation(user: { id: string; email: string; name: string }) {
+export async function sendSubscriptionConfirmation(user: { id: string; email: string; name: string }) {
   const firstName = user.name ? user.name.split(' ')[0] : 'there';
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: user.email,
-      subject: 'You now have full access to SELT Mock Test 🎉',
+      subject: 'Welcome to SELT Mock Test Premium 🎉',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
           <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 800;">SELT Mock Test</h1>
-            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Full Access Confirmed</p>
+            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Premium Subscription Confirmed</p>
           </div>
           <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
             <p>Hi ${firstName},</p>
-            <p>Thank you for your payment of <strong>£4.99</strong>. You now have <strong>lifetime full access</strong> to SELT Mock Test — no renewals, no monthly charges, ever.</p>
+            <p>Thank you for subscribing to <strong>SELT Mock Test Premium</strong> at <strong>£0.99/month</strong>. You now have full unlimited access to all mock tests across every CEFR level.</p>
             <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 20px; margin: 24px 0;">
-              <p style="margin: 0 0 8px; font-weight: 700; color: #0369a1;">Your full access includes:</p>
+              <p style="margin: 0 0 8px; font-weight: 700; color: #0369a1;">Your Premium subscription includes:</p>
               <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.8;">
                 <li>Unlimited mock tests for all CEFR levels (A1–C2)</li>
                 <li>AI-powered speaking and writing analysis</li>
@@ -119,7 +118,7 @@ export async function sendPaymentConfirmation(user: { id: string; email: string;
                 Start Practising Now →
               </a>
             </div>
-            <p style="color: #64748b; font-size: 13px;">If you have any questions, reply to this email or contact us at support@seltmocktest.co.uk.</p>
+            <p style="color: #64748b; font-size: 13px;">Your subscription renews monthly at £0.99. You can cancel anytime from your Profile page. If you have any questions, contact us at support@seltmocktest.co.uk.</p>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">SELT Mock Test | seltmocktest.co.uk</p>
           </div>
@@ -130,15 +129,15 @@ export async function sendPaymentConfirmation(user: { id: string; email: string;
     await prisma.emailLog.create({
       data: {
         userId: user.id,
-        emailType: 'payment_confirmation',
-        metadata: { amount: 499 },
+        emailType: 'subscription_confirmation',
+        metadata: { amount: 99 },
       },
     });
 
-    console.log(`✓ Payment confirmation sent to ${user.email}`);
+    console.log(`✓ Subscription confirmation sent to ${user.email}`);
     return true;
   } catch (err) {
-    console.error(`✗ Failed to send payment confirmation to ${user.email}:`, err);
+    console.error(`✗ Failed to send subscription confirmation to ${user.email}:`, err);
     return false;
   }
 }
@@ -153,11 +152,11 @@ export async function sendAdminNewSubscription(user: { email: string; name: stri
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: adminEmails,
-      subject: `💳 New Premium subscriber: ${user.name}`,
+      subject: `💳 New Subscription: ${user.name}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1e40af;">New Premium Subscription</h2>
-          <p>A new user has subscribed to SELT Mock Test Premium.</p>
+          <h2 style="color: #1e40af;">New Subscription Started</h2>
+          <p>A new user has subscribed to SELT Mock Test Premium (£0.99/month).</p>
           <table style="border-collapse: collapse; width: 100%; margin: 16px 0;">
             <tr style="border-bottom: 1px solid #e5e7eb;">
               <td style="padding: 8px 12px; color: #6b7280; font-size: 13px;">Name</td>
@@ -209,10 +208,10 @@ export async function sendEngagementNudge(user: { id: string; email: string; nam
     bodyIntro = `<p>Great news — you've already completed your first free SELT mock test!</p>
        <p>You still have <strong>1 more free full test</strong> available. Use it to track your progress and see which areas need more practice before the real exam.</p>`;
   } else {
-    subject = 'Unlock unlimited SELT practice for just £4.99 — one-time payment';
-    ctaText = 'Unlock Full Access — £4.99';
-    bodyIntro = `<p>You've completed both your free SELT mock tests — great work!</p>
-       <p>To keep practising and sit unlimited full mock tests across all CEFR levels (A1–C2), unlock full access for a <strong>one-time payment of just £4.99</strong>. No subscription, no monthly charges — pay once and practise as much as you need.</p>`;
+    subject = 'Unlock unlimited SELT practice for just £0.99/month';
+    ctaText = 'Unlock Full Access — £0.99/month';
+    bodyIntro = `<p>You’ve completed both your free SELT mock tests — great work!</p>
+       <p>To keep practising and sit unlimited full mock tests across all CEFR levels (A1–C2), unlock full access for just <strong>£0.99 per month</strong>. Cancel anytime — no lock-in, no hassle.</p>`;
   }
 
   try {
@@ -224,7 +223,7 @@ export async function sendEngagementNudge(user: { id: string; email: string; nam
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
           <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 32px 24px; text-align: center; border-radius: 12px 12px 0 0;">
             <h1 style="color: white; margin: 0; font-size: 22px; font-weight: 800;">SELT Mock Test</h1>
-            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Practice for the Skills for English Language Test</p>
+            <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">Prepare for your UK Secure English Language Test</p>
           </div>
           <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
             <p>Hi ${firstName},</p>
@@ -239,7 +238,7 @@ export async function sendEngagementNudge(user: { id: string; email: string; nam
                 ${testsTaken >= 2 ? '<li>📊 Unlimited tests across all CEFR levels (A1–C2)</li><li>🔍 Detailed SWOT analysis after every test</li>' : ''}
               </ul>
             </div>
-            <p>${testsTaken >= 2 ? 'One payment of £4.99 — no subscription, no recurring charges.' : 'After your test, you\'ll get a detailed score breakdown and SWOT analysis to help you focus your preparation.'}</p>
+            <p>${testsTaken >= 2 ? 'Just £0.99/month — cancel anytime from your Profile page.' : 'After your test, you\'ll get a detailed score breakdown and SWOT analysis to help you focus your preparation.'}</p>
             <div style="text-align: center; margin: 32px 0;">
               <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 14px 32px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 16px; display: inline-block;">
                 ${ctaText} →
@@ -249,7 +248,7 @@ export async function sendEngagementNudge(user: { id: string; email: string; nam
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">
               SELT Mock Test | seltmocktest.co.uk<br>
-              <a href="https://seltmocktest.co.uk" style="color: #94a3b8;">Unsubscribe</a>
+              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe%20from%20SELT%20emails" style="color: #94a3b8;">Unsubscribe</a>
             </p>
           </div>
         </div>
@@ -282,14 +281,14 @@ export async function sendCancellationEmail(user: { id: string; email: string; n
       subject: 'SELT Mock Test - Subscription Cancelled',
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1e40af;">Subscription Cancellation</h2>
+          <h2 style="color: #1e40af;">Subscription Cancelled</h2>
           <p>Hi ${user.name || 'there'},</p>
           ${immediate
-            ? `<p>Your <strong>SELT Premium</strong> subscription has been cancelled and your access has ended immediately.</p>`
-            : `<p>Your <strong>SELT Premium</strong> subscription has been set to cancel. You will continue to have premium access until <strong>${endDate}</strong>.</p>`
+            ? `<p>Your <strong>SELT Mock Test Premium</strong> subscription has been cancelled and access has ended immediately.</p>`
+            : `<p>Your <strong>SELT Mock Test Premium</strong> subscription has been cancelled. You will continue to have full access until <strong>${endDate}</strong>, after which your account will revert to the free plan.</p>`
           }
-          <p>You can resubscribe at any time by visiting <a href="https://seltmocktest.co.uk">seltmocktest.co.uk</a>.</p>
-          <p>We hope to see you again! If you have any feedback, please reach out to support@seltmocktest.co.uk.</p>
+          <p>You can resubscribe at any time from the <a href="https://seltmocktest.co.uk">SELT Mock Test website</a>.</p>
+          <p>If you believe this is an error or have any questions, please contact us at support@seltmocktest.co.uk.</p>
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
           <p style="color: #6b7280; font-size: 12px;">
             SELT Mock Test | seltmocktest.co.uk

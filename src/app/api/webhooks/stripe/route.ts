@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import Stripe from 'stripe';
-import { sendPaymentConfirmation, sendAdminNewSubscription, sendRefundEmail } from '@/lib/email';
+import { sendSubscriptionConfirmation, sendAdminNewSubscription, sendRefundEmail } from '@/lib/email';
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -27,6 +27,18 @@ export async function POST(req: NextRequest) {
         await handleCheckoutComplete(event.data.object as Stripe.Checkout.Session);
         break;
 
+      case 'invoice.paid':
+        await handleInvoicePaid(event.data.object as Stripe.Invoice);
+        break;
+
+      case 'customer.subscription.updated':
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        break;
+
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
+        break;
+
       case 'charge.refunded':
         await handleChargeRefunded(event.data.object as Stripe.Charge);
         break;
@@ -42,10 +54,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// ── New monthly subscription checkout completed ───────────────────────────────
 async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
-  // Only handle one-time payment sessions
-  if (session.mode !== 'payment') {
-    console.log('Skipping non-payment session:', session.mode);
+  if (session.mode !== 'subscription') {
+    // Legacy one-time payment path — keep existing onetime_ subscriptions intact
+    console.log('Skipping non-subscription session:', session.mode);
     return;
   }
 
@@ -57,51 +70,108 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     return;
   }
 
-  // Record the payment
-  const paymentIntentId = session.payment_intent as string;
-  await prisma.payment.upsert({
-    where: { stripeInvoiceId: session.id },
-    create: {
-      userId: user.id,
-      stripeInvoiceId: session.id,           // reuse invoice field to store session ID
-      stripePaymentIntent: paymentIntentId,
-      amount: session.amount_total ?? 499,
-      currency: session.currency ?? 'gbp',
-      status: 'paid',
-      paidAt: new Date(),
-    },
-    update: {
-      status: 'paid',
-      paidAt: new Date(),
-    },
-  });
+  const stripeSubId = session.subscription as string;
+  const stripeSub = await stripe.subscriptions.retrieve(stripeSubId);
 
-  // Create a lifetime "subscription" record so existing access checks still work
-  const FAR_FUTURE = new Date('2099-12-31T23:59:59Z');
   await prisma.subscription.upsert({
-    where: { stripeSubscriptionId: 'onetime_' + session.id },
+    where: { stripeSubscriptionId: stripeSubId },
     create: {
       userId: user.id,
-      stripeSubscriptionId: 'onetime_' + session.id,
-      stripePriceId: process.env.STRIPE_PRICE_ID ?? 'one_time',
-      status: 'active',
-      currentPeriodStart: new Date(),
-      currentPeriodEnd: FAR_FUTURE,
-      cancelAtPeriodEnd: false,
+      stripeSubscriptionId: stripeSubId,
+      stripePriceId: process.env.STRIPE_PRICE_ID ?? '',
+      status: stripeSub.status,
+      currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
+      currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
     },
     update: {
-      status: 'active',
-      currentPeriodEnd: FAR_FUTURE,
+      status: stripeSub.status,
+      currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
       updatedAt: new Date(),
     },
   });
 
-  console.log(`✓ One-time payment + lifetime access granted for ${user.email}`);
+  console.log(`✓ Subscription created for ${user.email} — ${stripeSubId}`);
 
-  await sendPaymentConfirmation({ id: user.id, email: user.email, name: user.name });
+  await sendSubscriptionConfirmation({ id: user.id, email: user.email, name: user.name });
   await sendAdminNewSubscription({ email: user.email, name: user.name });
 }
 
+// ── Monthly invoice paid — keep period end in sync ────────────────────────────
+async function handleInvoicePaid(invoice: Stripe.Invoice) {
+  if (!invoice.subscription) return;
+
+  const stripeSubId = invoice.subscription as string;
+  const stripeSub = await stripe.subscriptions.retrieve(stripeSubId);
+
+  // Record the payment
+  const user = await prisma.user.findUnique({
+    where: { stripeCustomerId: invoice.customer as string },
+  });
+
+  if (user && invoice.id) {
+    await prisma.payment.upsert({
+      where: { stripeInvoiceId: invoice.id },
+      create: {
+        userId: user.id,
+        stripeInvoiceId: invoice.id,
+        stripePaymentIntent: invoice.payment_intent as string ?? null,
+        amount: invoice.amount_paid,
+        currency: invoice.currency,
+        status: 'paid',
+        paidAt: new Date(),
+      },
+      update: { status: 'paid', paidAt: new Date() },
+    });
+  }
+
+  // Update subscription period end
+  await prisma.subscription.updateMany({
+    where: { stripeSubscriptionId: stripeSubId },
+    data: {
+      status: 'active',
+      currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
+      currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
+      cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
+      updatedAt: new Date(),
+    },
+  });
+
+  console.log(`✓ Invoice paid for sub ${stripeSubId} — period end updated`);
+}
+
+// ── Subscription status changed (cancelled, paused, etc.) ────────────────────
+async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
+  await prisma.subscription.updateMany({
+    where: { stripeSubscriptionId: sub.id },
+    data: {
+      status: sub.status,
+      currentPeriodStart: new Date(sub.current_period_start * 1000),
+      currentPeriodEnd: new Date(sub.current_period_end * 1000),
+      cancelAtPeriodEnd: sub.cancel_at_period_end,
+      updatedAt: new Date(),
+    },
+  });
+
+  console.log(`✓ Subscription updated: ${sub.id} — status: ${sub.status}`);
+}
+
+// ── Subscription fully deleted ────────────────────────────────────────────────
+async function handleSubscriptionDeleted(sub: Stripe.Subscription) {
+  await prisma.subscription.updateMany({
+    where: { stripeSubscriptionId: sub.id },
+    data: {
+      status: 'canceled',
+      cancelAtPeriodEnd: false,
+      updatedAt: new Date(),
+    },
+  });
+
+  console.log(`✓ Subscription deleted: ${sub.id}`);
+}
+
+// ── Charge refunded ───────────────────────────────────────────────────────────
 async function handleChargeRefunded(charge: Stripe.Charge) {
   if (!charge.refunds?.data?.length) return;
 
@@ -127,24 +197,14 @@ async function handleChargeRefunded(charge: Stripe.Charge) {
       },
     });
 
-    // If refunded, revoke lifetime access
-    if (user) {
-      await prisma.subscription.updateMany({
-        where: {
-          userId: user.id,
-          stripeSubscriptionId: { startsWith: 'onetime_' },
-          status: 'active',
-        },
-        data: { status: 'canceled', canceledAt: new Date(), updatedAt: new Date() },
-      });
+    console.log(`✓ Refund synced: ${refund.id} — £${(refund.amount / 100).toFixed(2)}`);
 
+    if (user) {
       await sendRefundEmail(
         { id: user.id, email: user.email, name: user.name || '' },
         refund.amount,
         refund.reason || undefined
       ).catch((e) => console.warn('Refund email failed:', e));
     }
-
-    console.log(`✓ Refund synced: ${refund.id} — £${(refund.amount / 100).toFixed(2)}`);
   }
 }

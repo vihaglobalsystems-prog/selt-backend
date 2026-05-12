@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SELT Admin Portal</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <script src="https://cdn.jsdelivr.net/npm/tailwindcss-cdn@3.4.16/tailwindcss.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.24.7/babel.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    body { background: #0f172a; color: #e2e8f0; font-family: system-ui, -apple-system, sans-serif; }
+    .fade-in { animation: fadeIn 0.25s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+    .spinner { border: 3px solid #334155; border-top: 3px solid #06b6d4; border-radius: 50%; width: 28px; height: 28px; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    #boot-loader { position:fixed;inset:0;background:#0f172a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999; }
+    #boot-loader .bl-spinner { border:3px solid #334155;border-top:3px solid #06b6d4;border-radius:50%;width:36px;height:36px;animation:spin 0.8s linear infinite; }
+  </style>
+</head>
+<body>
+<div id="boot-loader">
+  <div class="bl-spinner"></div>
+  <p style="color:#94a3b8;font-size:14px;font-family:system-ui,sans-serif;">Loading admin portal…</p>
+</div>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useCallback, useRef } = React;
+
+const API_URL = 'https://selt-backend.netlify.app';
+const GOOGLE_CLIENT_ID = '632882354824-85ud62oabaot047csq46p0ika33rfgcv.apps.googleusercontent.com';
+
+function fmtDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+function fmtDT(d)   { if (!d) return '—'; return new Date(d).toLocaleString('en-GB',  { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
+function fmtGBP(v)  { return '£' + (typeof v === 'number' ? v.toFixed(2) : '0.00'); }
+function fmtShort(d){ if (!d) return ''; return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short' }); }
+
+function api(path, opts = {}) {
+  const admin = JSON.parse(localStorage.getItem('selt_admin') || 'null');
+  return fetch(API_URL + path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', 'x-admin-email': admin?.email || '', ...(opts.headers || {}) },
+  }).then(r => r.json());
+}
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+function Ic({ n, cls = 'w-5 h-5' }) {
+  const icons = {
+    home:     <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+    users:    <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+    card:     <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>,
+    dollar:   <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>,
+    chart:    <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>,
+    refund:   <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>,
+    login:    <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>,
+    logout:   <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+    shield:   <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+    trash:    <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>,
+    search:   <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    back:     <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>,
+    check:    <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>,
+    x:        <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+    star:     <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+    refresh:  <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>,
+    eye:      <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+    activity: <svg className={cls} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+  };
+  return icons[n] || null;
+}
+
+// ── Reusable UI ───────────────────────────────────────────────────────────────
+function Stat({ icon, label, value, sub, color = 'cyan' }) {
+  const colors = { cyan: 'text-cyan-400 bg-cyan-400/10', green: 'text-green-400 bg-green-400/10', amber: 'text-amber-400 bg-amber-400/10', purple: 'text-purple-400 bg-purple-400/10', rose: 'text-rose-400 bg-rose-400/10', blue: 'text-blue-400 bg-blue-400/10' };
+  return (
+    <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+      <div className="flex items-center gap-3 mb-3">
+        <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${colors[color]}`}><Ic n={icon} cls="w-5 h-5" /></div>
+        <p className="text-slate-400 text-sm">{label}</p>
+      </div>
+      <p className="text-2xl font-bold text-white">{value ?? '—'}</p>
+      {sub && <p className="text-xs text-slate-500 mt-1">{sub}</p>}
+    </div>
+  );
+}
+
+function Badge({ status }) {
+  const map = { active: 'bg-green-900/40 text-green-400', free: 'bg-slate-700 text-slate-300', trialing: 'bg-blue-900/40 text-blue-400', canceled: 'bg-red-900/40 text-red-400', past_due: 'bg-amber-900/40 text-amber-400', paid: 'bg-green-900/40 text-green-400', succeeded: 'bg-green-900/40 text-green-400', pending: 'bg-amber-900/40 text-amber-400' };
+  return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${map[status] || 'bg-slate-700 text-slate-300'}`}>{status}</span>;
+}
+
+function Toast({ msg, type = 'info', onClose }) {
+  const colors = { info: 'bg-cyan-900/80 border-cyan-500/40 text-cyan-200', success: 'bg-green-900/80 border-green-500/40 text-green-200', error: 'bg-red-900/80 border-red-500/40 text-red-200' };
+  return (
+    <div className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm shadow-2xl max-w-sm ${colors[type]}`}>
+      <Ic n={type === 'success' ? 'check' : type === 'error' ? 'x' : 'activity'} cls="w-4 h-4 flex-shrink-0" />
+      <span className="flex-1">{msg}</span>
+      <button onClick={onClose} className="ml-1 opacity-60 hover:opacity-100"><Ic n="x" cls="w-3.5 h-3.5" /></button>
+    </div>
+  );
+}
+
+function Pager({ page, totalPages, onPage }) {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between p-3 border-t border-slate-700">
+      <button onClick={() => onPage(page - 1)} disabled={page <= 1} className="px-3 py-1.5 text-xs rounded-lg bg-slate-700 text-white disabled:opacity-30 hover:bg-slate-600 transition">← Prev</button>
+      <span className="text-xs text-slate-400">Page {page} of {totalPages}</span>
+      <button onClick={() => onPage(page + 1)} disabled={page >= totalPages} className="px-3 py-1.5 text-xs rounded-lg bg-slate-700 text-white disabled:opacity-30 hover:bg-slate-600 transition">Next →</button>
+    </div>
+  );
+}
+
+function BarChart({ data, valueKey, labelKey, color = '#06b6d4', height = 120, formatVal }) {
+  if (!data || data.length === 0) return <p className="text-slate-500 text-sm text-center py-8">No data yet</p>;
+  const max = Math.max(...data.map(d => d[valueKey])) || 1;
+  return (
+    <div className="flex items-end gap-px" style={{ height }}>
+      {data.map((d, i) => {
+        const pct = (d[valueKey] / max) * 100;
+        return (
+          <div key={i} className="flex-1 flex flex-col items-center justify-end group relative" style={{ height: '100%' }}>
+            <div className="absolute bottom-full mb-1 hidden group-hover:block z-10 bg-slate-900 border border-slate-600 text-xs text-white px-2 py-1 rounded whitespace-nowrap shadow-xl pointer-events-none">
+              {d[labelKey]}: <strong>{formatVal ? formatVal(d[valueKey]) : d[valueKey]}</strong>
+            </div>
+            <div className="w-full rounded-t transition-opacity hover:opacity-70" style={{ height: `${Math.max(pct, 2)}%`, background: color }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Inline prompt modal (replaces window.prompt — blocked on mobile) ──────────
+function PromptModal({ message, onConfirm, onCancel }) {
+  const [value, setValue] = useState('');
+  return (
+    <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:9999,display:'flex',alignItems:'center',justifyContent:'center',padding:'16px'}}>
+      <div className="bg-slate-800 border border-slate-600 rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+        <p className="text-white text-sm font-semibold mb-4">{message}</p>
+        <input
+          autoFocus
+          type="text"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onConfirm(value); if (e.key === 'Escape') onCancel(); }}
+          placeholder="Enter reason (optional)"
+          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm mb-4 outline-none focus:border-cyan-500"
+        />
+        <div className="flex gap-3">
+          <button onClick={() => onConfirm(value)} className="flex-1 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-semibold transition">Confirm</button>
+          <button onClick={onCancel} className="flex-1 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm transition">Cancel</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+function LoginPage({ onLogin }) {
+  const [error, setError]   = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (window.google?.accounts) {
+        clearInterval(timer);
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: async (response) => {
+            setLoading(true); setError('');
+            try {
+              const payload = JSON.parse(atob(response.credential.split('.')[1]));
+              const res = await api('/api/admin/auth', { method: 'POST', body: JSON.stringify({ email: payload.email, name: payload.name, picture: payload.picture }) });
+              if (res.authenticated) { localStorage.setItem('selt_admin', JSON.stringify(res)); onLogin(res); }
+              else setError(res.error || 'Access denied');
+            } catch { setError('Authentication failed. Please try again.'); }
+            setLoading(false);
+          },
+        });
+        window.google.accounts.id.renderButton(document.getElementById('g-signin'), { theme: 'filled_black', size: 'large', width: 300, text: 'signin_with' });
+      }
+    }, 200);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl p-8 w-full max-w-sm text-center shadow-2xl">
+        <div className="w-14 h-14 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-5">
+          <Ic n="shield" cls="w-7 h-7 text-white" />
+        </div>
+        <h1 className="text-xl font-bold text-white mb-1">SELT Admin Portal</h1>
+        <p className="text-slate-400 text-sm mb-8">Sign in with your authorised Google account</p>
+        {loading ? <div className="flex justify-center"><div className="spinner" /></div> : <div id="g-signin" className="flex justify-center" />}
+        {error && <p className="mt-4 text-red-400 text-sm">{error}</p>}
+      </div>
+    </div>
+  );
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────────
+function Analytics() {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api('/api/admin/analytics').then(d => { setData(d); setLoading(false); }).catch(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="flex justify-center py-20"><div className="spinner" /></div>;
+  if (!data)   return <p className="text-red-400 text-center py-10">Failed to load analytics</p>;
+
+  const { summary: s, charts, topUsers } = data;
+  const signupDays  = charts.dailySignups.map(d => ({ ...d, label: fmtShort(d.date) }));
+  const revenueDays = charts.dailyRevenue.map(d => ({ label: fmtShort(d.date), poundsVal: d.pence / 100 }));
+
+  return (
+    <div className="space-y-6 fade-in">
+      <h2 className="text-xl font-bold text-white">Analytics</h2>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <Stat icon="users"    label="Total Users"    value={s.totalUsers}                                   color="cyan"   />
+        <Stat icon="star"     label="Full Access"    value={s.premiumUsers}  sub={s.conversionRate + '% conversion'} color="purple" />
+        <Stat icon="users"    label="Free Tier"      value={s.freeUsers}                                    color="blue"   />
+        <Stat icon="dollar"   label="Total Revenue"  value={fmtGBP(s.totalRevenue)}                         color="green"  />
+        <Stat icon="dollar"   label="MRR"            value={fmtGBP(s.mrr)}  sub="This month"               color="amber"  />
+        <Stat icon="activity" label="Avg Test Score" value={s.avgScore ? s.avgScore + '%' : '—'} sub={s.totalTests + ' tests'} color="rose" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <div className="flex justify-between items-center mb-4">
+            <p className="text-sm font-semibold text-white">New Users — Last 30 days</p>
+            <span className="text-xs text-slate-500">Today: {s.usersToday} · Week: {s.usersThisWeek}</span>
+          </div>
+          <BarChart data={signupDays} valueKey="count" labelKey="label" color="#06b6d4" height={100} />
+        </div>
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4">Daily Revenue — Last 30 days</p>
+          <BarChart data={revenueDays} valueKey="poundsVal" labelKey="label" color="#a78bfa" height={100} formatVal={v => fmtGBP(v)} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4">Tests by Level &amp; Section</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-slate-500 mb-2 uppercase tracking-wide">By Level</p>
+              {charts.testsByLevel.length === 0 ? <p className="text-slate-600 text-xs">No data yet</p> : charts.testsByLevel.map(r => (
+                <div key={r.level} className="flex justify-between text-sm mb-1.5">
+                  <span className="text-slate-300">{r.level}</span>
+                  <span className="text-cyan-400 font-semibold">{r.count}</span>
+                </div>
+              ))}
+            </div>
+            <div>
+              <p className="text-xs text-slate-500 mb-2 uppercase tracking-wide">By Section</p>
+              {charts.testsBySection.length === 0 ? <p className="text-slate-600 text-xs">No data yet</p> : charts.testsBySection.map(r => (
+                <div key={r.section} className="flex justify-between text-sm mb-1.5">
+                  <span className="text-slate-300 capitalize">{r.section}</span>
+                  <span className="text-purple-400 font-semibold">{r.count}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4">Most Active Users</p>
+          {topUsers.length === 0 ? <p className="text-slate-500 text-sm">No test data yet</p> : (
+            <div className="space-y-3">
+              {topUsers.map((u, i) => (
+                <div key={u.email} className="flex items-center gap-3">
+                  <span className="w-5 text-center text-xs text-slate-500 font-mono">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white truncate">{u.name || u.email}</p>
+                    <p className="text-xs text-slate-500 truncate">{u.email}</p>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <p className="text-sm text-cyan-400 font-semibold">{u.testCount} tests</p>
+                    {u.avgScore && <p className="text-xs text-slate-500">{u.avgScore}% avg</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+        <p className="text-sm font-semibold text-white mb-5">Conversion Funnel</p>
+        <div className="flex items-stretch gap-2">
+          {[
+            { label: 'Signed Up',  val: s.totalUsers,    color: 'from-cyan-600 to-cyan-500' },
+            { label: 'Took Test',  val: s.totalTests > 0 ? s.totalUsers : 0, color: 'from-blue-600 to-blue-500' },
+            { label: 'Full Access', val: s.premiumUsers, color: 'from-purple-600 to-purple-500' },
+          ].map((item, i, arr) => {
+            const pct = arr[0].val > 0 ? ((item.val / arr[0].val) * 100).toFixed(0) : 0;
+            return (
+              <div key={item.label} className="flex-1 text-center">
+                <div className={`bg-gradient-to-br ${item.color} rounded-xl py-5 flex flex-col items-center`}>
+                  <span className="text-2xl font-bold text-white">{item.val}</span>
+                  <span className="text-xs text-white/70 mt-0.5">{pct}%</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">{item.label}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────────
+function Dashboard({ onNavigate }) {
+  const [stats, setStats] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const load = () => { setLoading(true); api('/api/admin/dashboard').then(d => { setStats(d); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <div className="flex justify-center py-20"><div className="spinner" /></div>;
+  if (!stats)  return <p className="text-red-400 text-center py-10">Failed to load</p>;
+
+  const { stats: s, recentUsers, recentPayments } = stats;
+
+  return (
+    <div className="space-y-6 fade-in">
+      <div className="flex justify-between items-center">
+        <h2 className="text-xl font-bold text-white">Dashboard</h2>
+        <button onClick={load} className="text-slate-400 hover:text-cyan-400 transition"><Ic n="refresh" cls="w-4 h-4" /></button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <Stat icon="users"    label="Total Users"        value={s.totalUsers}                              color="cyan"   />
+        <Stat icon="star"     label="Full Access Users" value={s.activeSubscriptions}                     color="purple" />
+        <Stat icon="card"     label="Total Payments"     value={s.totalPayments}                           color="blue"   />
+        <Stat icon="dollar"   label="Total Revenue"      value={fmtGBP(s.totalRevenue)}                    color="green"  />
+        <Stat icon="refund"   label="Refunds"            value={s.totalRefunds} sub={fmtGBP(s.totalRefundAmount)} color="amber" />
+        <Stat icon="chart"    label="Net Revenue"        value={fmtGBP(s.totalRevenue - (s.totalRefundAmount || 0))} color="rose" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="flex justify-between items-center px-4 pt-4 pb-2">
+            <p className="text-sm font-semibold text-white">Recent Sign-ups</p>
+            <button onClick={() => onNavigate('users')} className="text-xs text-cyan-400 hover:underline">View all →</button>
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {recentUsers.map(u => (
+                <tr key={u.id} className="border-t border-slate-700 hover:bg-slate-700/30 cursor-pointer" onClick={() => onNavigate('user', u.id)}>
+                  <td className="px-4 py-2.5"><p className="text-white">{u.name||'—'}</p><p className="text-slate-400 text-xs">{u.email}</p></td>
+                  <td className="px-4 py-2.5 text-slate-400 text-xs text-right whitespace-nowrap">{fmtDate(u.createdAt)}</td>
+                </tr>
+              ))}
+              {recentUsers.length === 0 && <tr><td colSpan="2" className="p-6 text-center text-slate-500 text-sm">No users yet</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="flex justify-between items-center px-4 pt-4 pb-2">
+            <p className="text-sm font-semibold text-white">Recent Payments</p>
+            <button onClick={() => onNavigate('payments')} className="text-xs text-cyan-400 hover:underline">View all →</button>
+          </div>
+          <table className="w-full text-sm">
+            <tbody>
+              {recentPayments.map(p => (
+                <tr key={p.id} className="border-t border-slate-700 hover:bg-slate-700/30 cursor-pointer" onClick={() => p.user && onNavigate('user', p.user.id)}>
+                  <td className="px-4 py-2.5"><p className="text-white">{p.user?.name||p.user?.email||'—'}</p><p className="text-slate-400 text-xs">{p.user?.email}</p></td>
+                  <td className="px-4 py-2.5 text-right"><p className="text-green-400 font-semibold">{fmtGBP(p.amount/100)}</p><Badge status={p.status} /></td>
+                </tr>
+              ))}
+              {recentPayments.length === 0 && <tr><td colSpan="2" className="p-6 text-center text-slate-500 text-sm">No payments yet</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Users List ────────────────────────────────────────────────────────────────
+function UsersList({ onNavigate }) {
+  const [users, setUsers]           = useState([]);
+  const [search, setSearch]         = useState('');
+  const [filter, setFilter]         = useState('all');
+  const [counts, setCounts]         = useState({ all: 0, premium: 0, free: 0 });
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const [loading, setLoading]       = useState(true);
+  const debounce = useRef(null);
+
+  const load = useCallback((p = 1, q = '', f = 'all') => {
+    setLoading(true);
+    api(`/api/admin/users?page=${p}&limit=15&search=${encodeURIComponent(q)}&filter=${f}`)
+      .then(d => {
+        setUsers(d.users||[]);
+        setTotal(d.total||0);
+        setTotalPages(d.totalPages||1);
+        setPage(p);
+        if (d.counts) setCounts(d.counts);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(1, '', 'all'); }, [load]);
+
+  const onSearch = v => { setSearch(v); clearTimeout(debounce.current); debounce.current = setTimeout(() => load(1, v, filter), 350); };
+  const onFilter = f => { setFilter(f); load(1, search, f); };
+
+  const FILTERS = [
+    { id: 'all',     label: 'All Users',  count: counts.all },
+    { id: 'premium', label: 'Full Access', count: counts.premium },
+    { id: 'free',    label: 'Free',       count: counts.free },
+  ];
+
+  return (
+    <div className="space-y-4 fade-in">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-xl font-bold text-white">Users</h2>
+        <div className="relative">
+          <Ic n="search" cls="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search name or email…" className="pl-9 pr-4 py-2 text-sm bg-slate-700 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 w-64" />
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {FILTERS.map(f => (
+          <button key={f.id} onClick={() => onFilter(f.id)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition border ${
+              filter === f.id
+                ? f.id === 'premium' ? 'bg-cyan-600/20 text-cyan-400 border-cyan-600/40'
+                  : f.id === 'free'  ? 'bg-slate-600/40 text-slate-300 border-slate-500'
+                  : 'bg-slate-700 text-white border-slate-500'
+                : 'text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white'
+            }`}>
+            {f.label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+              filter === f.id ? 'bg-white/10' : 'bg-slate-700'
+            }`}>{f.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {loading ? <div className="flex justify-center py-10"><div className="spinner" /></div> : (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide text-left">
+                <th className="px-4 py-3">User</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Joined</th><th className="px-4 py-3">Actions</th>
+              </tr></thead>
+              <tbody>
+                {users.map(u => (
+                  <tr key={u.id} className="border-t border-slate-700 hover:bg-slate-700/30 transition">
+                    <td className="px-4 py-3 cursor-pointer" onClick={() => onNavigate('user', u.id)}>
+                      <div className="flex items-center gap-3">
+                        {u.avatarUrl
+                          ? <img src={u.avatarUrl} className="w-8 h-8 rounded-full" alt="" />
+                          : <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs text-white font-bold">{(u.name||u.email||'?')[0].toUpperCase()}</div>
+                        }
+                        <div><p className="text-white font-medium">{u.name||'—'}</p><p className="text-slate-400 text-xs">{u.email}</p></div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3"><Badge status={u.hasActiveSubscription ? 'active' : 'free'} /></td>
+                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{fmtDate(u.createdAt)}</td>
+                    <td className="px-4 py-3">
+                      <button onClick={() => onNavigate('user', u.id)} className="px-3 py-1.5 text-xs bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 rounded-lg hover:bg-cyan-600/30 transition flex items-center gap-1">
+                        <Ic n="eye" cls="w-3 h-3" /> View
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {users.length === 0 && <tr><td colSpan="4" className="p-10 text-center text-slate-500">No {filter !== 'all' ? filter : ''} users found</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} totalPages={totalPages} onPage={p => load(p, search, filter)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── User Detail ───────────────────────────────────────────────────────────────
+function UserDetail({ userId, onBack, onToast }) {
+  const [user, setUser]         = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [busy, setBusy]         = useState('');
+  const [promptFor, setPromptFor] = useState(null); // { paymentId }
+
+  const reload = () => { setLoading(true); api(`/api/admin/users/${userId}`).then(d => { setUser(d.user); setLoading(false); }).catch(() => setLoading(false)); };
+  useEffect(() => { reload(); }, [userId]);
+
+  const doAction = async (label, fn, afterDelete = false) => {
+    if (!confirm(label + '?')) return;
+    setBusy(label);
+    try {
+      const r = await fn();
+      if (r.success || r.deleted) {
+        onToast(r.message || label + ' done', 'success');
+        if (afterDelete) { onBack(); return; }
+        reload();
+      } else onToast(r.error || 'Action failed', 'error');
+    } catch { onToast('Network error', 'error'); }
+    setBusy('');
+  };
+
+  const issueRefund = (paymentId) => setPromptFor({ paymentId });
+
+  const confirmRefund = async (reason) => {
+    const { paymentId } = promptFor;
+    setPromptFor(null);
+    setBusy('refund-' + paymentId);
+    try {
+      const r = await api('/api/admin/refunds', { method: 'POST', body: JSON.stringify({ paymentId, reason: reason||undefined }) });
+      if (r.success) { onToast('Refund of ' + fmtGBP(r.refund.amount) + ' issued', 'success'); reload(); }
+      else onToast(r.error||'Refund failed', 'error');
+    } catch { onToast('Network error', 'error'); }
+    setBusy('');
+  };
+
+  if (loading) return <div className="flex justify-center py-20"><div className="spinner" /></div>;
+  if (!user)   return <div className="text-center py-10"><p className="text-red-400 mb-4">User not found</p><button onClick={onBack} className="text-cyan-400 text-sm">← Back</button></div>;
+
+  const hasActiveSub = user.subscriptions?.some(s => s.status === 'active' || s.status === 'trialing');
+  if (promptFor) return <PromptModal message="Reason for refund (optional — press Confirm to proceed):" onConfirm={confirmRefund} onCancel={() => setPromptFor(null)} />;
+  const device       = user.userProfile?.profile?._device;
+  const totalTests   = user._count?.testResults ?? user.testResults?.length ?? 0;
+
+  return (
+    <div className="space-y-5 fade-in">
+      <button onClick={onBack} className="flex items-center gap-2 text-slate-400 hover:text-cyan-400 transition text-sm"><Ic n="back" cls="w-4 h-4" /> Back to Users</button>
+
+      {/* Header card */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+        <div className="flex items-start gap-4 flex-wrap">
+          {user.avatarUrl
+            ? <img src={user.avatarUrl} className="w-16 h-16 rounded-full border-2 border-cyan-500/30" alt="" />
+            : <div className="w-16 h-16 rounded-full bg-slate-600 flex items-center justify-center text-2xl font-bold text-white">{(user.name||user.email||'?')[0].toUpperCase()}</div>
+          }
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap mb-1">
+              <h2 className="text-xl font-bold text-white">{user.name||'No name'}</h2>
+              <Badge status={hasActiveSub ? 'active' : 'free'} />
+            </div>
+            <p className="text-slate-400 text-sm mb-3">{user.email}</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+              <span>ID: <span className="text-slate-300 font-mono">{user.id.slice(0,8)}…</span></span>
+              <span>Role: <span className="text-slate-300">{user.role||'user'}</span></span>
+              <span>Joined: <span className="text-slate-300">{fmtDate(user.createdAt)}</span></span>
+              <span>Tests taken: <span className="text-slate-300">{totalTests}</span></span>
+              {user.stripeCustomerId && <span>Stripe: <span className="text-slate-300 font-mono">{user.stripeCustomerId}</span></span>}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {!hasActiveSub
+              ? <button onClick={() => doAction('Grant 1-year premium access to this user', () => api(`/api/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ action: 'grant_premium' }) }))} disabled={!!busy} className="px-3 py-2 bg-green-600 hover:bg-green-500 text-white text-xs rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5 transition">
+                  <Ic n="star" cls="w-3.5 h-3.5" />{busy.startsWith('Grant') ? 'Working…' : 'Grant Full Access'}
+                </button>
+              : <button onClick={() => doAction('Revoke full access from this user', () => api(`/api/admin/users/${userId}`, { method: 'PATCH', body: JSON.stringify({ action: 'revoke_premium' }) }))} disabled={!!busy} className="px-3 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5 transition">
+                  <Ic n="x" cls="w-3.5 h-3.5" />{busy.startsWith('Revoke') ? 'Working…' : 'Revoke Premium'}
+                </button>
+            }
+            <button onClick={() => doAction('Permanently DELETE this user and ALL their data — this cannot be undone', () => api(`/api/admin/users/${userId}`, { method: 'DELETE' }), true)} disabled={!!busy} className="px-3 py-2 bg-red-700 hover:bg-red-600 text-white text-xs rounded-lg font-medium disabled:opacity-50 flex items-center gap-1.5 transition">
+              <Ic n="trash" cls="w-3.5 h-3.5" />{busy.includes('DELETE') ? 'Deleting…' : 'Delete User'}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Device info */}
+      {device && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4 flex items-center gap-2"><Ic n="eye" cls="w-4 h-4 text-cyan-400" /> Device &amp; Location</p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[['IP Address', device.ip], ['Browser', device.browser], ['OS', device.os], ['Screen', device.screen], ['Language', device.language], ['Timezone', device.timezone], ['Last Seen', device.capturedAt ? fmtDT(device.capturedAt) : null]].filter(([,v]) => v).map(([label, val]) => (
+              <div key={label} className="bg-slate-900 rounded-lg p-3">
+                <p className="text-xs text-slate-500 mb-0.5">{label}</p>
+                <p className="text-sm text-slate-200 font-mono break-all">{val}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Subscriptions */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+        <p className="text-sm font-semibold text-white mb-4">Subscriptions ({user.subscriptions?.length||0})</p>
+        {!user.subscriptions?.length
+          ? <p className="text-slate-500 text-sm">No subscriptions</p>
+          : user.subscriptions.map(sub => (
+            <div key={sub.id} className="bg-slate-900 rounded-xl p-4 border border-slate-700 mb-3 last:mb-0">
+              <div className="flex justify-between items-start flex-wrap gap-2 mb-2">
+                <div>
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <Badge status={sub.status} />
+                    {sub.cancelAtPeriodEnd && <span className="text-xs text-amber-400">(access revoked)</span>}
+                    {(sub.stripeSubscriptionId?.startsWith('onetime_') || sub.stripeSubscriptionId?.startsWith('manual_')) && <span className="text-xs bg-cyan-900/40 text-cyan-400 px-1.5 py-0.5 rounded">one-time</span>}
+                  </div>
+                  <p className="text-xs text-slate-400 font-mono mb-1">{sub.stripeSubscriptionId}</p>
+                  <p className="text-xs text-slate-400">{fmtDate(sub.currentPeriodStart)} — {fmtDate(sub.currentPeriodEnd)}</p>
+                </div>
+                {(sub.status === 'active' || sub.status === 'trialing') && !sub.cancelAtPeriodEnd && (
+                  <div className="flex gap-2">
+                    <button onClick={() => doAction('Revoke full access for this user', () => api(`/api/admin/subscriptions/${sub.id}/cancel`, { method:'POST', body: JSON.stringify({ immediate: false }) }))} disabled={!!busy} className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs rounded-lg transition disabled:opacity-50">Revoke of Period</button>
+                    <button onClick={() => doAction('Cancel this subscription IMMEDIATELY', () => api(`/api/admin/subscriptions/${sub.id}/cancel`, { method:'POST', body: JSON.stringify({ immediate: true }) }))} disabled={!!busy} className="px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white text-xs rounded-lg transition disabled:opacity-50">Cancel Now</button>
+                  </div>
+                )}
+              </div>
+              {sub.payments?.length > 0 && (
+                <div className="border-t border-slate-700 pt-3 mt-2 space-y-2">
+                  <p className="text-xs text-slate-500">Payments on this subscription:</p>
+                  {sub.payments.map(pay => (
+                    <div key={pay.id} className="flex justify-between items-center text-xs gap-2 flex-wrap">
+                      <span className="text-slate-300 whitespace-nowrap">{fmtDT(pay.paidAt||pay.createdAt)}</span>
+                      <span className="text-white font-semibold">{fmtGBP(pay.amount/100)}</span>
+                      <Badge status={pay.status} />
+                      {pay.refunds?.length > 0
+                        ? <span className="text-red-400">Refunded ({fmtGBP(pay.refunds.reduce((s,r)=>s+r.amount,0)/100)})</span>
+                        : pay.status === 'paid'
+                          ? <button onClick={() => issueRefund(pay.id)} disabled={!!busy} className="px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded text-xs transition disabled:opacity-50">{busy==='refund-'+pay.id ? '…' : 'Refund'}</button>
+                          : <span className="text-slate-600">—</span>
+                      }
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))
+        }
+      </div>
+
+      {/* Test Results */}
+      {user.testResults?.length > 0 && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4">Test Results ({totalTests} total{user.testResults.length < totalTests ? ', showing latest ' + user.testResults.length : ''})</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr className="text-slate-400 text-left"><th className="p-2">Date</th><th className="p-2">Level</th><th className="p-2">Section</th><th className="p-2">Score</th><th className="p-2">%</th></tr></thead>
+              <tbody>
+                {user.testResults.map(t => (
+                  <tr key={t.id} className="border-t border-slate-700">
+                    <td className="p-2 text-slate-300 whitespace-nowrap">{fmtDT(t.timestamp)}</td>
+                    <td className="p-2"><span className="px-1.5 py-0.5 bg-cyan-900/40 text-cyan-400 rounded">{t.level}</span></td>
+                    <td className="p-2 text-slate-300 capitalize">{t.section||'—'}</td>
+                    <td className="p-2 text-white font-semibold">{t.score}/{t.total}</td>
+                    <td className="p-2"><span className={`font-semibold ${Number(t.percentage)>=70?'text-green-400':Number(t.percentage)>=50?'text-amber-400':'text-red-400'}`}>{t.percentage}%</span></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* All Payments */}
+      {user.payments?.length > 0 && (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4">Payment History ({user.payments.length})</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr className="text-slate-400 text-left"><th className="p-2">Date</th><th className="p-2">Amount</th><th className="p-2">Status</th><th className="p-2">Stripe PI</th><th className="p-2">Action</th></tr></thead>
+              <tbody>
+                {user.payments.map(pay => (
+                  <tr key={pay.id} className="border-t border-slate-700">
+                    <td className="p-2 text-slate-300 whitespace-nowrap">{fmtDT(pay.paidAt||pay.createdAt)}</td>
+                    <td className="p-2 text-white font-semibold">{fmtGBP(pay.amount/100)}</td>
+                    <td className="p-2"><Badge status={pay.status} /></td>
+                    <td className="p-2 text-slate-400 font-mono">{pay.stripePaymentIntent ? pay.stripePaymentIntent.slice(0,18)+'…' : '—'}</td>
+                    <td className="p-2">
+                      {pay.refunds?.length > 0
+                        ? <span className="text-red-400">Refunded ({fmtGBP(pay.refunds.reduce((s,r)=>s+r.amount,0)/100)})</span>
+                        : pay.status==='paid'
+                          ? <button onClick={() => issueRefund(pay.id)} disabled={!!busy} className="px-2 py-1 bg-red-700 hover:bg-red-600 text-white rounded text-xs transition disabled:opacity-50">{busy==='refund-'+pay.id?'…':'Issue Refund'}</button>
+                          : <span className="text-slate-600">—</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Subscriptions Tab ─────────────────────────────────────────────────────────
+function SubscriptionsList({ onNavigate }) {
+  const [subs, setSubs]             = useState([]);
+  const [filter, setFilter]         = useState('');
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const [loading, setLoading]       = useState(true);
+
+  const load = useCallback((p=1, f='') => {
+    setLoading(true);
+    api(`/api/admin/subscriptions?page=${p}&limit=15${f?'&status='+f:''}`)
+      .then(d => { setSubs(d.subscriptions||[]); setTotal(d.total||0); setTotalPages(d.totalPages||1); setPage(p); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(1,''); }, [load]);
+
+  return (
+    <div className="space-y-4 fade-in">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h2 className="text-xl font-bold text-white">Full Access Purchases ({total})</h2>
+        <div className="flex gap-2 flex-wrap">
+          {['','active','canceled','past_due'].map(s => (
+            <button key={s} onClick={() => { setFilter(s); load(1,s); }} className={`px-3 py-1.5 text-xs rounded-lg border transition ${filter===s?'bg-cyan-600/20 border-cyan-500/40 text-cyan-400':'border-slate-600 text-slate-400 hover:border-slate-500'}`}>{s||'All'}</button>
+          ))}
+        </div>
+      </div>
+      {loading ? <div className="flex justify-center py-10"><div className="spinner" /></div> : (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide text-left">
+                <th className="px-4 py-3">User</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Period End</th><th className="px-4 py-3">Type</th><th className="px-4 py-3">Actions</th>
+              </tr></thead>
+              <tbody>
+                {subs.map(s => (
+                  <tr key={s.id} className="border-t border-slate-700 hover:bg-slate-700/30 transition">
+                    <td className="px-4 py-3 cursor-pointer" onClick={() => s.user && onNavigate('user', s.user.id)}>
+                      <p className="text-white">{s.user?.name||'—'}</p>
+                      <p className="text-slate-400 text-xs">{s.user?.email}</p>
+                    </td>
+                    <td className="px-4 py-3 space-x-1"><Badge status={s.status} />{s.cancelAtPeriodEnd && <span className="text-xs text-amber-400">· cancels end</span>}</td>
+                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{fmtDate(s.currentPeriodEnd)}</td>
+                    <td className="px-4 py-3 text-xs">{s.stripeSubscriptionId?.startsWith('manual_') ? <span className="text-purple-400">Manual</span> : <span className="text-slate-400">Stripe</span>}</td>
+                    <td className="px-4 py-3">{s.user && <button onClick={() => onNavigate('user', s.user.id)} className="px-2 py-1 text-xs bg-cyan-600/20 text-cyan-400 border border-cyan-600/30 rounded-lg hover:bg-cyan-600/30 transition">View User</button>}</td>
+                  </tr>
+                ))}
+                {subs.length === 0 && <tr><td colSpan="5" className="p-10 text-center text-slate-500">No subscriptions found</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} totalPages={totalPages} onPage={p => load(p, filter)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Payments Tab ──────────────────────────────────────────────────────────────
+function PaymentsList({ onNavigate, onToast }) {
+  const [payments, setPayments]     = useState([]);
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const [loading, setLoading]       = useState(true);
+  const [busy, setBusy]               = useState('');
+  const [promptFor, setPromptFor]     = useState(null); // { paymentId }
+
+  const load = useCallback((p=1) => {
+    setLoading(true);
+    api(`/api/admin/payments?page=${p}&limit=20`)
+      .then(d => { setPayments(d.payments||[]); setTotal(d.total||0); setTotalPages(d.totalPages||1); setPage(p); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(1); }, [load]);
+
+  const issueRefund = (paymentId) => setPromptFor({ paymentId });
+
+  const confirmRefund = async (reason) => {
+    const { paymentId } = promptFor;
+    setPromptFor(null);
+    setBusy(paymentId);
+    try {
+      const r = await api('/api/admin/refunds', { method:'POST', body: JSON.stringify({ paymentId, reason: reason||undefined }) });
+      if (r.success) { onToast('Refund of ' + fmtGBP(r.refund.amount) + ' issued', 'success'); load(page); }
+      else onToast(r.error||'Refund failed', 'error');
+    } catch { onToast('Network error', 'error'); }
+    setBusy('');
+  };
+
+  if (promptFor) return <PromptModal message="Reason for refund (optional):" onConfirm={confirmRefund} onCancel={() => setPromptFor(null)} />;
+
+  return (
+    <div className="space-y-4 fade-in">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">Payments ({total})</h2>
+        <button onClick={() => load(page)} className="text-slate-400 hover:text-cyan-400 transition"><Ic n="refresh" cls="w-4 h-4" /></button>
+      </div>
+      {loading ? <div className="flex justify-center py-10"><div className="spinner" /></div> : (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide text-left">
+                <th className="px-4 py-3">User</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Action</th>
+              </tr></thead>
+              <tbody>
+                {payments.map(p => (
+                  <tr key={p.id} className="border-t border-slate-700 hover:bg-slate-700/30 transition">
+                    <td className="px-4 py-3 cursor-pointer" onClick={() => p.user && onNavigate('user', p.user.id)}>
+                      <p className="text-white">{p.user?.name||'—'}</p>
+                      <p className="text-slate-400 text-xs">{p.user?.email}</p>
+                    </td>
+                    <td className="px-4 py-3 text-green-400 font-semibold">{fmtGBP(p.amount/100)}</td>
+                    <td className="px-4 py-3"><Badge status={p.status} /></td>
+                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{fmtDT(p.paidAt||p.createdAt)}</td>
+                    <td className="px-4 py-3">
+                      {p.refunds?.length > 0
+                        ? <span className="text-xs text-red-400">Refunded ({fmtGBP(p.refunds.reduce((s,r)=>s+r.amount,0)/100)})</span>
+                        : p.status==='paid'
+                          ? <button onClick={() => issueRefund(p.id)} disabled={busy===p.id} className="px-3 py-1.5 text-xs bg-red-700 hover:bg-red-600 text-white rounded-lg transition disabled:opacity-50">{busy===p.id?'…':'Issue Refund'}</button>
+                          : <span className="text-slate-600 text-xs">—</span>
+                      }
+                    </td>
+                  </tr>
+                ))}
+                {payments.length === 0 && <tr><td colSpan="5" className="p-10 text-center text-slate-500">No payments yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} totalPages={totalPages} onPage={load} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Refunds Tab ───────────────────────────────────────────────────────────────
+function RefundsList({ onNavigate }) {
+  const [refunds, setRefunds]       = useState([]);
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const [loading, setLoading]       = useState(true);
+
+  const load = useCallback((p=1) => {
+    setLoading(true);
+    api(`/api/admin/refunds?page=${p}&limit=20`)
+      .then(d => { setRefunds(d.refunds||[]); setTotal(d.total||0); setTotalPages(d.totalPages||1); setPage(p); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(1); }, [load]);
+
+  return (
+    <div className="space-y-4 fade-in">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">Refunds ({total})</h2>
+        <button onClick={() => load(page)} className="text-slate-400 hover:text-cyan-400 transition"><Ic n="refresh" cls="w-4 h-4" /></button>
+      </div>
+      {loading ? <div className="flex justify-center py-10"><div className="spinner" /></div> : (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide text-left">
+                <th className="px-4 py-3">User</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3">Date</th>
+              </tr></thead>
+              <tbody>
+                {refunds.map(r => (
+                  <tr key={r.id} className="border-t border-slate-700 hover:bg-slate-700/30 transition cursor-pointer" onClick={() => r.payment?.user && onNavigate('user', r.payment.user.id)}>
+                    <td className="px-4 py-3"><p className="text-white">{r.payment?.user?.name||'—'}</p><p className="text-slate-400 text-xs">{r.payment?.user?.email}</p></td>
+                    <td className="px-4 py-3 text-red-400 font-semibold">−{fmtGBP(r.amount/100)}</td>
+                    <td className="px-4 py-3"><Badge status={r.status||'succeeded'} /></td>
+                    <td className="px-4 py-3 text-slate-400 text-xs">{r.reason||'—'}</td>
+                    <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{fmtDT(r.createdAt)}</td>
+                  </tr>
+                ))}
+                {refunds.length === 0 && <tr><td colSpan="5" className="p-10 text-center text-slate-500">No refunds yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} totalPages={totalPages} onPage={load} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Login History Tab ─────────────────────────────────────────────────────────
+function LoginsList({ onNavigate }) {
+  const [logins, setLogins]         = useState([]);
+  const [page, setPage]             = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal]           = useState(0);
+  const [loading, setLoading]       = useState(true);
+
+  const load = useCallback((p=1) => {
+    setLoading(true);
+    api(`/api/admin/logins?page=${p}&limit=20`)
+      .then(d => { setLogins(d.logins||[]); setTotal(d.total||0); setTotalPages(d.totalPages||1); setPage(p); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => { load(1); }, [load]);
+
+  return (
+    <div className="space-y-4 fade-in">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">Login History ({total})</h2>
+        <button onClick={() => load(page)} className="text-slate-400 hover:text-cyan-400 transition"><Ic n="refresh" cls="w-4 h-4" /></button>
+      </div>
+      {loading ? <div className="flex justify-center py-10"><div className="spinner" /></div> : (
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase tracking-wide text-left">
+                <th className="px-4 py-3">User</th><th className="px-4 py-3">Browser / OS</th><th className="px-4 py-3">IP</th><th className="px-4 py-3">Screen / Lang</th><th className="px-4 py-3">Timezone</th><th className="px-4 py-3">Time</th>
+              </tr></thead>
+              <tbody>
+                {logins.map(l => {
+                  const m = l.metadata || {};
+                  return (
+                    <tr key={l.id} className={'border-t border-slate-700 transition ' + (l.user ? 'hover:bg-slate-700/30 cursor-pointer' : '')} onClick={() => l.user && onNavigate('user', l.user.id)}>
+                      <td className="px-4 py-3"><p className="text-white">{l.user?.name||m.email||'—'}</p><p className="text-slate-400 text-xs">{l.user?.email||''}</p></td>
+                      <td className="px-4 py-3"><p className="text-white text-xs">{m.browser||'—'}</p><p className="text-slate-400 text-xs">{m.os||'—'}</p></td>
+                      <td className="px-4 py-3 text-slate-300 font-mono text-xs">{m.ip||'—'}</td>
+                      <td className="px-4 py-3"><p className="text-slate-300 text-xs">{m.screen||'—'}</p><p className="text-slate-400 text-xs">{m.language||'—'}</p></td>
+                      <td className="px-4 py-3 text-slate-400 text-xs">{m.timezone||'—'}</td>
+                      <td className="px-4 py-3 text-slate-400 text-xs whitespace-nowrap">{fmtDT(l.sentAt)}</td>
+                    </tr>
+                  );
+                })}
+                {logins.length === 0 && <tr><td colSpan="6" className="p-10 text-center text-slate-500">No logins recorded yet</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <Pager page={page} totalPages={totalPages} onPage={load} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── GA Traffic ────────────────────────────────────────────────────────────────
+function GATraffic() {
+  const [data, setData]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState(null);
+
+  useEffect(() => {
+    api('/api/admin/ga')
+      .then(d => { if (d.error) throw new Error(d.error); setData(d); setLoading(false); })
+      .catch(e => { setError(e.message); setLoading(false); });
+  }, []);
+
+  if (loading) return <div className="flex justify-center py-20"><div className="spinner" /></div>;
+  if (error)   return (
+    <div className="bg-red-900/20 border border-red-700 rounded-xl p-6 text-center space-y-2">
+      <p className="text-red-400 font-semibold">GA4 not connected</p>
+      <p className="text-slate-400 text-sm">{error}</p>
+      <p className="text-slate-500 text-xs">Make sure GOOGLE_SERVICE_ACCOUNT_JSON and GA4_PROPERTY_ID are set in Netlify environment variables.</p>
+    </div>
+  );
+
+  const ov = data.overview || {};
+  const fmtSec = s => { const m = Math.floor(s/60); return m > 0 ? `${m}m ${s%60}s` : `${s}s`; };
+  const maxSessions = Math.max(...(data.daily||[]).map(r => +r.sessions), 1);
+
+  return (
+    <div className="space-y-6 fade-in">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-white">Google Analytics — Last 30 Days</h2>
+        <span className="flex items-center gap-2 text-xs text-green-400 bg-green-900/20 border border-green-700/40 px-3 py-1 rounded-full">
+          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block"></span>
+          {data.activeUsers} active now
+        </span>
+      </div>
+
+      {/* Overview cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {[
+          { label: 'Sessions',    value: (+ov.sessions||0).toLocaleString() },
+          { label: 'Users',       value: (+ov.totalUsers||0).toLocaleString() },
+          { label: 'New Users',   value: (+ov.newUsers||0).toLocaleString() },
+          { label: 'Page Views',  value: (+ov.pageViews||0).toLocaleString() },
+          { label: 'Bounce Rate', value: `${ov.bounceRate||0}%` },
+          { label: 'Avg Session', value: fmtSec(ov.avgSessionDuration||0) },
+        ].map(c => (
+          <div key={c.label} className="bg-slate-800 rounded-xl border border-slate-700 p-4 text-center">
+            <p className="text-2xl font-bold text-cyan-400">{c.value}</p>
+            <p className="text-xs text-slate-400 mt-1">{c.label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Daily Sessions chart */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+        <p className="text-sm font-semibold text-white mb-4">Daily Sessions</p>
+        <div className="flex items-end gap-1 h-32">
+          {(data.daily||[]).map((r,i) => {
+            const pct = Math.round((+r.sessions / maxSessions) * 100);
+            const label = r.date ? `${r.date.slice(4,6)}/${r.date.slice(6,8)}` : '';
+            return (
+              <div key={i} className="flex-1 flex flex-col items-center gap-1" title={`${label}: ${r.sessions} sessions`}>
+                <div className="w-full bg-cyan-500/80 rounded-t" style={{ height: `${Math.max(pct,2)}%` }} />
+                {(data.daily||[]).length <= 15 && <span className="text-[9px] text-slate-500 rotate-45 origin-left">{label}</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Traffic Sources */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4">Traffic Sources</p>
+          <div className="space-y-3">
+            {(data.trafficSources||[]).map((r,i) => {
+              const total = (data.trafficSources||[]).reduce((s,x) => s + +x.sessions, 0) || 1;
+              const pct = Math.round((+r.sessions / total) * 100);
+              return (
+                <div key={i}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-300">{r.sessionDefaultChannelGroup||'Other'}</span>
+                    <span className="text-slate-400">{r.sessions} sessions ({pct}%)</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-cyan-500 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+            {!(data.trafficSources||[]).length && <p className="text-slate-500 text-sm text-center py-4">No data yet</p>}
+          </div>
+        </div>
+
+        {/* Devices */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+          <p className="text-sm font-semibold text-white mb-4">Devices</p>
+          <div className="space-y-3">
+            {(data.devices||[]).map((r,i) => {
+              const total = (data.devices||[]).reduce((s,x) => s + +x.sessions, 0) || 1;
+              const pct = Math.round((+r.sessions / total) * 100);
+              const col = r.deviceCategory==='desktop'?'bg-cyan-500':r.deviceCategory==='mobile'?'bg-violet-500':'bg-emerald-500';
+              return (
+                <div key={i}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-300 capitalize">{r.deviceCategory}</span>
+                    <span className="text-slate-400">{r.sessions} ({pct}%)</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div className={`h-full ${col} rounded-full`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+            {!(data.devices||[]).length && <p className="text-slate-500 text-sm text-center py-4">No data yet</p>}
+          </div>
+        </div>
+
+        {/* Top Pages */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-700">
+            <p className="text-sm font-semibold text-white">Top Pages</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase">
+              <th className="px-4 py-2 text-left">Page</th>
+              <th className="px-4 py-2 text-right">Views</th>
+              <th className="px-4 py-2 text-right">Users</th>
+            </tr></thead>
+            <tbody>
+              {(data.topPages||[]).map((r,i) => (
+                <tr key={i} className="border-t border-slate-700">
+                  <td className="px-4 py-2 text-slate-300 font-mono text-xs truncate max-w-[180px]">{r.pagePath}</td>
+                  <td className="px-4 py-2 text-right text-white">{r.screenPageViews}</td>
+                  <td className="px-4 py-2 text-right text-slate-400">{r.totalUsers}</td>
+                </tr>
+              ))}
+              {!(data.topPages||[]).length && <tr><td colSpan="3" className="p-6 text-center text-slate-500">No data yet</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Top Countries */}
+        <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-700">
+            <p className="text-sm font-semibold text-white">Top Countries</p>
+          </div>
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase">
+              <th className="px-4 py-2 text-left">Country</th>
+              <th className="px-4 py-2 text-right">Sessions</th>
+              <th className="px-4 py-2 text-right">Users</th>
+            </tr></thead>
+            <tbody>
+              {(data.countries||[]).map((r,i) => (
+                <tr key={i} className="border-t border-slate-700">
+                  <td className="px-4 py-2 text-slate-300">{r.country}</td>
+                  <td className="px-4 py-2 text-right text-white">{r.sessions}</td>
+                  <td className="px-4 py-2 text-right text-slate-400">{r.totalUsers}</td>
+                </tr>
+              ))}
+              {!(data.countries||[]).length && <tr><td colSpan="3" className="p-6 text-center text-slate-500">No data yet</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Ad Conversions */}
+      <div className="bg-slate-800 rounded-xl border border-slate-700 p-5">
+        <p className="text-sm font-semibold text-white mb-1">Ad Conversions (payment=success hits)</p>
+        <p className="text-xs text-slate-500 mb-4">Number of times the subscription success page was loaded per day</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-900 text-slate-400 text-xs uppercase">
+              <th className="px-4 py-2 text-left">Date</th>
+              <th className="px-4 py-2 text-right">Conversion Hits</th>
+            </tr></thead>
+            <tbody>
+              {(data.conversions||[]).map((r,i) => (
+                <tr key={i} className="border-t border-slate-700">
+                  <td className="px-4 py-2 text-slate-300">{r.date ? `${r.date.slice(0,4)}-${r.date.slice(4,6)}-${r.date.slice(6,8)}` : '—'}</td>
+                  <td className="px-4 py-2 text-right text-cyan-400 font-bold">{r.screenPageViews}</td>
+                </tr>
+              ))}
+              {!(data.conversions||[]).length && <tr><td colSpan="2" className="p-6 text-center text-slate-500">No conversions recorded yet — they will appear here after the first paid subscription</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+function App() {
+  const [admin, setAdmin]           = useState(() => JSON.parse(localStorage.getItem('selt_admin') || 'null'));
+  const [view, setView]             = useState('dashboard');
+  const [selectedUserId, setUserId] = useState(null);
+  const [toast, setToast]           = useState(null);
+
+  const showToast = (msg, type='info') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4500); };
+
+  const navigate = (target, id) => {
+    if (target === 'user') { setUserId(id); setView('userDetail'); }
+    else { setView(target); setUserId(null); }
+  };
+
+  if (!admin) return <LoginPage onLogin={setAdmin} />;
+
+  const NAV = [
+    { id: 'dashboard',     icon: 'home',    label: 'Dashboard'     },
+    { id: 'analytics',     icon: 'chart',   label: 'Analytics'     },
+    { id: 'users',         icon: 'users',   label: 'Users'         },
+    { id: 'subscriptions', icon: 'star',    label: 'Full Access'   },
+    { id: 'payments',      icon: 'dollar',  label: 'Payments'      },
+    { id: 'refunds',       icon: 'refund',  label: 'Refunds'       },
+    { id: 'logins',        icon: 'login',   label: 'Logins'        },
+    { id: 'traffic',       icon: 'chart',   label: 'GA Traffic'    },
+  ];
+  const activeTab = view === 'userDetail' ? 'users' : view;
+
+  return (
+    <div className="min-h-screen">
+      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      <nav className="bg-slate-800/90 backdrop-blur-sm border-b border-slate-700 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center"><Ic n="shield" cls="w-4 h-4 text-white" /></div>
+            <span className="font-bold text-white text-sm sm:text-base">SELT Admin</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-400 hidden sm:inline">{admin.email}</span>
+            {admin.picture && <img src={admin.picture} className="w-7 h-7 rounded-full" alt="" />}
+            <button onClick={() => { localStorage.removeItem('selt_admin'); setAdmin(null); }} title="Logout" className="text-slate-400 hover:text-red-400 transition"><Ic n="logout" cls="w-4 h-4" /></button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
+        <aside className="hidden md:block w-48 shrink-0">
+          <nav className="space-y-1 sticky top-20">
+            {NAV.map(item => (
+              <button key={item.id} onClick={() => navigate(item.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition ${activeTab===item.id?'bg-cyan-600/20 text-cyan-400 border border-cyan-600/20':'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+                <Ic n={item.icon} cls="w-4 h-4" />{item.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
+
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-800 border-t border-slate-700 z-40 flex justify-around py-1.5">
+          {NAV.map(item => (
+            <button key={item.id} onClick={() => navigate(item.id)} className={`flex flex-col items-center gap-0.5 px-2 py-1 rounded transition ${activeTab===item.id?'text-cyan-400':'text-slate-500'}`}>
+              <Ic n={item.icon} cls="w-5 h-5" /><span className="text-[10px]">{item.label}</span>
+            </button>
+          ))}
+        </div>
+
+        <main className="flex-1 min-w-0 pb-24 md:pb-0">
+          {view==='dashboard'     && <Dashboard onNavigate={navigate} />}
+          {view==='analytics'     && <Analytics />}
+          {view==='users'         && <UsersList onNavigate={navigate} />}
+          {view==='userDetail'    && <UserDetail userId={selectedUserId} onBack={() => navigate('users')} onToast={showToast} />}
+          {view==='subscriptions' && <SubscriptionsList onNavigate={navigate} />}
+          {view==='payments'      && <PaymentsList onNavigate={navigate} onToast={showToast} />}
+          {view==='refunds'       && <RefundsList onNavigate={navigate} />}
+          {view==='logins'        && <LoginsList onNavigate={navigate} />}
+          {view==='traffic'       && <GATraffic />}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+const rootEl = document.getElementById('root');
+ReactDOM.createRoot(rootEl).render(<App />);
+// Hide boot loader once React has rendered
+const _bl = document.getElementById('boot-loader');
+if (_bl) { requestAnimationFrame(() => requestAnimationFrame(() => { _bl.style.display = 'none'; })); }
+</script>
+</body>
+</html>
