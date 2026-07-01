@@ -6,7 +6,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 // POST /api/support/contact
 // { name: string, email: string, subject: string, message: string }
-// Sends message to support@seltmocktest.com and a confirmation to the user.
+// Forwards message to ADMIN_EMAILS and sends a confirmation to the user.
 export async function POST(req: NextRequest) {
   try {
     const { name, email, subject, message } = await req.json();
@@ -20,10 +20,14 @@ export async function POST(req: NextRequest) {
     const safeSubject = String(subject).trim().slice(0, 200);
     const safeMessage = String(message).trim().slice(0, 4000);
 
+    // Use ADMIN_EMAILS env var (same as new-subscriber notifications)
+    const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+    const supportTo   = adminEmails.length > 0 ? adminEmails : ['vihaglobalsystems@gmail.com'];
+
     // ── 1. Forward to support inbox ──
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
-      to: 'support@seltmocktest.com',
+      to: supportTo,
       replyTo: normalizedEmail,
       subject: `[Support] ${safeSubject}`,
       html: `
@@ -34,7 +38,7 @@ export async function POST(req: NextRequest) {
             </div>
           </div>
           <h2 style="color: #f97316; margin: 0 0 4px;">New Support Request</h2>
-          <p style="color: #64748b; font-size: 13px; margin: 0 0 24px;">Submitted via the chat widget on seltmocktest.com</p>
+          <p style="color: #64748b; font-size: 13px; margin: 0 0 24px;">Submitted via the chat widget on seltmocktest.co.uk</p>
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
             <tr>
               <td style="padding: 8px 12px; background: #1e293b; border-radius: 8px 0 0 0; color: #94a3b8; font-size: 13px; width: 100px;">Name</td>
@@ -76,9 +80,9 @@ ${safeMessage.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
             <p style="margin: 0 0 6px; color: #64748b; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">Your message</p>
             <p style="margin: 0; color: #94a3b8; font-size: 13px; font-weight: 600;">${safeSubject}</p>
           </div>
-          <p style="color: #64748b; font-size: 13px; margin: 0 0 8px;">In the meantime, you can continue practising on <a href="https://seltmocktest.com" style="color: #06b6d4;">seltmocktest.com</a>.</p>
+          <p style="color: #64748b; font-size: 13px; margin: 0 0 8px;">In the meantime, you can continue practising on <a href="https://seltmocktest.co.uk" style="color: #06b6d4;">seltmocktest.co.uk</a>.</p>
           <hr style="border: none; border-top: 1px solid #1e293b; margin: 24px 0;">
-          <p style="color: #475569; font-size: 12px; text-align: center;">SELT Mock Test · support@seltmocktest.com</p>
+          <p style="color: #475569; font-size: 12px; text-align: center;">SELT Mock Test · support@seltmocktest.co.uk</p>
         </div>
       `,
     });
