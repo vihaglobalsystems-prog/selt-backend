@@ -143,18 +143,23 @@ async function handleInvoicePaid(invoice: Stripe.Invoice) {
 
 // ── Subscription status changed (cancelled, paused, etc.) ────────────────────
 async function handleSubscriptionUpdated(sub: Stripe.Subscription) {
+  // Re-fetch using our pinned SDK API version to avoid field mismatches
+  // between the webhook endpoint version and the Stripe library version.
+  // (current_period_start/end moved in newer API versions)
+  const freshSub = await stripe.subscriptions.retrieve(sub.id);
+
   await prisma.subscription.updateMany({
     where: { stripeSubscriptionId: sub.id },
     data: {
-      status: sub.status,
-      currentPeriodStart: new Date(sub.current_period_start * 1000),
-      currentPeriodEnd: new Date(sub.current_period_end * 1000),
-      cancelAtPeriodEnd: sub.cancel_at_period_end,
+      status: freshSub.status,
+      currentPeriodStart: new Date(freshSub.current_period_start * 1000),
+      currentPeriodEnd: new Date(freshSub.current_period_end * 1000),
+      cancelAtPeriodEnd: freshSub.cancel_at_period_end,
       updatedAt: new Date(),
     },
   });
 
-  console.log(`✓ Subscription updated: ${sub.id} — status: ${sub.status}`);
+  console.log(`✓ Subscription updated: ${sub.id} — status: ${freshSub.status}`);
 }
 
 // ── Subscription fully deleted ────────────────────────────────────────────────
