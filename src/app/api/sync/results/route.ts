@@ -29,11 +29,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { testId, level, score, total, percentage, section, timestamp, ...rest } = body;
     const user = await prisma.user.findUnique({ where: { email } });
+    const resolvedTestId: string = testId || ('test_' + Date.now());
     const result = await prisma.testResult.create({
       data: {
         email,
         userId: user?.id,
-        testId: testId || ('test_' + Date.now()),
+        testId: resolvedTestId,
         level,
         score,
         total,
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
         sendTestCompletedEmail(
           { id: user.id, email: user.email, name: user.name },
           {
-            testId: result.testId,
+            testId: resolvedTestId,
             level: level ?? 'B1',
             listeningScore: rest.listeningScore,
             readingScore: rest.readingScore,
