@@ -10,25 +10,39 @@ export async function sendBillingReminder(user: { id: string; email: string; nam
     month: 'long',
     day: 'numeric',
   });
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
 
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: user.email,
-      subject: 'SELT Mock Test - Your access reminder',
+      subject: `Heads up: your SELT subscription renews on ${renewalDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' })}`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1e40af;">Subscription Renewal Reminder</h2>
-          <p>Hi ${user.name},</p>
-          <p>This is a friendly reminder that your <strong>SELT Mock Test</strong> subscription
-          renews on <strong>${formattedDate}</strong>.</p>
-          <p>Your subscription gives you unlimited access to all mock tests at <strong>£0.99/month</strong>. You can cancel anytime from your Profile page.</p>
-          <p>If you have any questions, please contact us at
-          <a href="mailto:support@seltmocktest.co.uk">support@seltmocktest.co.uk</a>.</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 12px;">
-            SELT Mock Test | seltmocktest.co.uk
-          </p>
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Mock Test Platform</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 8px;">Hi ${firstName},</p>
+            <p style="color: #334155; margin: 0 0 20px;">Just a heads-up — your <strong>SELT Mock Test Premium</strong> subscription renews on:</p>
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin: 0 0 20px; text-align: center;">
+              <p style="margin: 0; font-size: 18px; font-weight: 700; color: #0369a1;">📅 ${formattedDate}</p>
+              <p style="margin: 6px 0 0; font-size: 13px; color: #0891b2;">£0.99 will be charged to your payment method</p>
+            </div>
+            <p style="color: #334155; margin: 0 0 16px;">Your subscription gives you unlimited access to all SELT mock tests across every CEFR level — keep practising to make sure you're ready for the real exam.</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">
+                Continue Practising →
+              </a>
+            </div>
+            <p style="color: #64748b; font-size: 13px; margin: 0 0 4px;">You can cancel anytime from your <strong>Profile page</strong> before the renewal date — no fees, no hassle.</p>
+            <p style="color: #64748b; font-size: 13px; margin: 0;">Questions? Email us at <a href="mailto:support@seltmocktest.co.uk" style="color: #0891b2;">support@seltmocktest.co.uk</a>.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">SELT Mock Test · seltmocktest.co.uk</p>
+          </div>
         </div>
       `,
     });
@@ -51,23 +65,35 @@ export async function sendBillingReminder(user: { id: string; email: string; nam
 }
 
 export async function sendRefundEmail(user: { id: string; email: string; name: string }, amount: number, reason?: string) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+  const amountFormatted = `£${(amount / 100).toFixed(2)}`;
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: user.email,
-      subject: 'SELT Mock Test - Refund Processed',
+      subject: `Your SELT refund of ${amountFormatted} has been processed`,
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1e40af;">Refund Confirmation</h2>
-          <p>Hi ${user.name || 'there'},</p>
-          <p>A refund of <strong>£${(amount / 100).toFixed(2)}</strong> has been processed to your original payment method.</p>
-          ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
-          <p>Please allow 5-10 business days for the refund to appear on your statement.</p>
-          <p>If you have any questions, please contact us at support@seltmocktest.co.uk.</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 12px;">
-            SELT Mock Test | seltmocktest.co.uk
-          </p>
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Mock Test Platform</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 8px;">Hi ${firstName},</p>
+            <p style="color: #334155; margin: 0 0 20px;">Your refund has been successfully processed.</p>
+            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px; padding: 16px 20px; margin: 0 0 20px; text-align: center;">
+              <p style="margin: 0; font-size: 22px; font-weight: 800; color: #15803d;">✅ ${amountFormatted} Refunded</p>
+              <p style="margin: 6px 0 0; font-size: 13px; color: #16a34a;">To your original payment method</p>
+            </div>
+            ${reason ? `<p style="color: #64748b; font-size: 13px; margin: 0 0 16px;"><strong>Reason:</strong> ${reason}</p>` : ''}
+            <p style="color: #334155; margin: 0 0 16px;">Please allow <strong>5–10 business days</strong> for the refund to appear on your statement, depending on your bank.</p>
+            <p style="color: #334155; margin: 0 0 20px;">If you change your mind, you're always welcome to resubscribe at <a href="https://seltmocktest.co.uk" style="color: #0891b2;">seltmocktest.co.uk</a> — your 2 free tests remain available.</p>
+            <p style="color: #64748b; font-size: 13px; margin: 0;">Questions? Email us at <a href="mailto:support@seltmocktest.co.uk" style="color: #0891b2;">support@seltmocktest.co.uk</a>.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">SELT Mock Test · seltmocktest.co.uk</p>
+          </div>
         </div>
       `,
     });
@@ -280,27 +306,45 @@ export async function sendEngagementNudge(user: { id: string; email: string; nam
 }
 
 export async function sendCancellationEmail(user: { id: string; email: string; name: string }, immediate: boolean, periodEnd?: Date | null) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
   const endDate = periodEnd ? periodEnd.toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '';
 
   try {
     await resend.emails.send({
       from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
       to: user.email,
-      subject: 'SELT Mock Test - Subscription Cancelled',
+      subject: 'Your SELT Mock Test subscription has been cancelled',
       html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #1e40af;">Subscription Cancelled</h2>
-          <p>Hi ${user.name || 'there'},</p>
-          ${immediate
-            ? `<p>Your <strong>SELT Mock Test Premium</strong> subscription has been cancelled and access has ended immediately.</p>`
-            : `<p>Your <strong>SELT Mock Test Premium</strong> subscription has been cancelled. You will continue to have full access until <strong>${endDate}</strong>, after which your account will revert to the free plan.</p>`
-          }
-          <p>You can resubscribe at any time from the <a href="https://seltmocktest.co.uk">SELT Mock Test website</a>.</p>
-          <p>If you believe this is an error or have any questions, please contact us at support@seltmocktest.co.uk.</p>
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
-          <p style="color: #6b7280; font-size: 12px;">
-            SELT Mock Test | seltmocktest.co.uk
-          </p>
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Mock Test Platform</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 8px;">Hi ${firstName},</p>
+            ${immediate
+              ? `<p style="color: #334155; margin: 0 0 16px;">Your <strong>SELT Mock Test Premium</strong> subscription has been cancelled and access has ended.</p>
+                 <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 16px 20px; margin: 0 0 20px;">
+                   <p style="margin: 0; color: #9a3412; font-size: 14px;">⚠️ Your premium access has ended immediately. Your account is now on the free plan.</p>
+                 </div>`
+              : `<p style="color: #334155; margin: 0 0 16px;">Your <strong>SELT Mock Test Premium</strong> subscription has been cancelled. You keep full access until your billing period ends.</p>
+                 <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin: 0 0 20px; text-align: center;">
+                   <p style="margin: 0; font-size: 16px; font-weight: 700; color: #0369a1;">📅 Access continues until ${endDate}</p>
+                   <p style="margin: 6px 0 0; font-size: 13px; color: #0891b2;">After this date your account reverts to the free plan</p>
+                 </div>`
+            }
+            <p style="color: #334155; margin: 0 0 16px;">We're sorry to see you go. If you're still preparing for your SELT exam, you can resubscribe anytime — your progress and history are saved.</p>
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">
+                Resubscribe Anytime →
+              </a>
+            </div>
+            <p style="color: #64748b; font-size: 13px; margin: 0;">If this was a mistake or you have questions, email us at <a href="mailto:support@seltmocktest.co.uk" style="color: #0891b2;">support@seltmocktest.co.uk</a>.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">SELT Mock Test · seltmocktest.co.uk</p>
+          </div>
         </div>
       `,
     });

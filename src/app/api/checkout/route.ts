@@ -47,10 +47,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Create a Stripe Checkout Session for monthly subscription
+    // No payment_method_types restriction — Stripe auto-detects card, Apple Pay, Google Pay
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: 'subscription',
-      payment_method_types: ['card'],
       line_items: [
         {
           price: process.env.STRIPE_PRICE_ID!,
