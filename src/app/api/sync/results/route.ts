@@ -54,9 +54,11 @@ export async function POST(req: NextRequest) {
       rest.speakingScore !== undefined;
 
     if (hasAllSections && user?.id) {
-      // Avoid duplicate emails for the same testId
+      // Avoid sending more than one result email per user per hour
+      // (simpler and TypeScript-safe vs JSON path filter on metadata)
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
       const alreadySent = await prisma.emailLog.findFirst({
-        where: { userId: user.id, emailType: 'test_completed', metadata: { path: ['testId'], equals: result.testId } },
+        where: { userId: user.id, emailType: 'test_completed', sentAt: { gte: oneHourAgo } },
       });
 
       if (!alreadySent) {
