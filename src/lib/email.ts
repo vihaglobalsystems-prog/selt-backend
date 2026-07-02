@@ -518,6 +518,259 @@ export async function sendTestCompletedEmail(
   }
 }
 
+// ── Nurture sequence: Day 1 (welcome) ────────────────────────────────────────
+export async function sendNurtureDay1(user: { id: string; email: string; name: string }) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
+      to: user.email,
+      subject: 'Welcome to SELT Mock Test — here\'s how to get the most from it',
+      html: `
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Mock Test Platform</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 16px; font-size: 15px;">Hi ${firstName} 👋</p>
+            <p style="color: #334155; margin: 0 0 16px;">Welcome to SELT Mock Test — you've just made the smartest move for your UK visa preparation.</p>
+            <p style="color: #334155; margin: 0 0 20px;">Here's how to get the most from your <strong>2 free mock tests</strong>:</p>
+
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 20px; margin: 0 0 24px;">
+              <div style="display: flex; margin-bottom: 12px; align-items: flex-start;">
+                <span style="font-size: 22px; margin-right: 12px; flex-shrink: 0;">🎯</span>
+                <div>
+                  <p style="margin: 0 0 2px; font-weight: 700; color: #0369a1; font-size: 14px;">Step 1 — Take your first mock test now</p>
+                  <p style="margin: 0; color: #334155; font-size: 13px;">Choose your CEFR level (most ILR applicants need B1). The test takes about 45–60 minutes — find a quiet place with a working microphone.</p>
+                </div>
+              </div>
+              <div style="display: flex; margin-bottom: 12px; align-items: flex-start;">
+                <span style="font-size: 22px; margin-right: 12px; flex-shrink: 0;">📊</span>
+                <div>
+                  <p style="margin: 0 0 2px; font-weight: 700; color: #0369a1; font-size: 14px;">Step 2 — Review your score breakdown</p>
+                  <p style="margin: 0; color: #334155; font-size: 13px;">After each test you'll get scores for Listening, Reading, Writing, and Speaking — plus a quick analysis of your strengths and focus areas.</p>
+                </div>
+              </div>
+              <div style="display: flex; align-items: flex-start;">
+                <span style="font-size: 22px; margin-right: 12px; flex-shrink: 0;">🔄</span>
+                <div>
+                  <p style="margin: 0 0 2px; font-weight: 700; color: #0369a1; font-size: 14px;">Step 3 — Practise the weak areas</p>
+                  <p style="margin: 0; color: #334155; font-size: 13px;">Focus on the section with the lowest score. Take your second free test a few days later to see your improvement.</p>
+                </div>
+              </div>
+            </div>
+
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 13px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">
+                Start My First Test →
+              </a>
+            </div>
+
+            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 14px 16px; margin: 0 0 16px;">
+              <p style="margin: 0; font-size: 13px; color: #9a3412;">💡 <strong>Pro tip:</strong> The real SELT costs £150–170 per attempt. Our mock tests use the same format — practise until you're confident before booking the real thing.</p>
+            </div>
+
+            <p style="color: #64748b; font-size: 13px; margin: 0;">Questions? Reply to this email or contact us at <a href="mailto:support@seltmocktest.co.uk" style="color: #0891b2;">support@seltmocktest.co.uk</a>.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+              SELT Mock Test · seltmocktest.co.uk<br>
+              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+            </p>
+          </div>
+        </div>
+      `,
+    });
+    await prisma.emailLog.create({
+      data: { userId: user.id, emailType: 'nurture_day1', metadata: {} },
+    });
+    console.log(`✓ Nurture day-1 sent to ${user.email}`);
+    return true;
+  } catch (err) {
+    console.error(`✗ Failed to send nurture day-1 to ${user.email}:`, err);
+    return false;
+  }
+}
+
+// ── Nurture sequence: Day 3 (check-in) ────────────────────────────────────────
+export async function sendNurtureDay3(
+  user: { id: string; email: string; name: string },
+  testsTaken: number,
+  examDate?: string | null
+) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+  const examDateStr = examDate
+    ? new Date(examDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+
+  const noTestYet = testsTaken === 0;
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
+      to: user.email,
+      subject: noTestYet
+        ? 'Your free SELT test is still waiting — takes 45 minutes'
+        : 'How did your first SELT practice test go?',
+      html: `
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Mock Test Platform</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 16px;">Hi ${firstName},</p>
+
+            ${noTestYet ? `
+            <p style="color: #334155; margin: 0 0 16px;">You signed up 3 days ago but haven't taken your first free test yet — that's completely fine, life gets busy!</p>
+            <p style="color: #334155; margin: 0 0 16px;">When you're ready, your <strong>2 free full mock tests</strong> are waiting. Each one covers all 4 sections of the real SELT exam — Listening, Reading, Writing, and Speaking.</p>
+            ${examDateStr ? `
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px 18px; margin: 0 0 20px;">
+              <p style="margin: 0; font-size: 14px; color: #0369a1;">📅 Your exam is on <strong>${examDateStr}</strong> — start practising soon to make the most of your prep time.</p>
+            </div>` : ''}
+            ` : `
+            <p style="color: #334155; margin: 0 0 16px;">You've completed your first SELT practice test — well done for taking that first step! 🎉</p>
+            <p style="color: #334155; margin: 0 0 16px;">You still have <strong>1 more free test</strong> available. The best way to see improvement is to:</p>
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px 18px; margin: 0 0 20px;">
+              <ul style="margin: 0; padding-left: 20px; color: #334155; font-size: 14px; line-height: 1.9;">
+                <li>Focus 2–3 days on your weakest section</li>
+                <li>Take your second free test and compare the scores</li>
+                <li>If you're aiming for B1, target 70%+ in every section</li>
+              </ul>
+            </div>
+            ${examDateStr ? `
+            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 14px 18px; margin: 0 0 20px;">
+              <p style="margin: 0; font-size: 13px; color: #9a3412;">📅 Your exam is on <strong>${examDateStr}</strong> — make every practice session count.</p>
+            </div>` : ''}
+            `}
+
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 13px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">
+                ${noTestYet ? 'Take My First Free Test →' : 'Take My Second Free Test →'}
+              </a>
+            </div>
+
+            <p style="color: #64748b; font-size: 13px; margin: 0;">Questions? Email us at <a href="mailto:support@seltmocktest.co.uk" style="color: #0891b2;">support@seltmocktest.co.uk</a>.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+              SELT Mock Test · seltmocktest.co.uk<br>
+              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+            </p>
+          </div>
+        </div>
+      `,
+    });
+    await prisma.emailLog.create({
+      data: { userId: user.id, emailType: 'nurture_day3', metadata: { testsTaken } },
+    });
+    console.log(`✓ Nurture day-3 sent to ${user.email}`);
+    return true;
+  } catch (err) {
+    console.error(`✗ Failed to send nurture day-3 to ${user.email}:`, err);
+    return false;
+  }
+}
+
+// ── Nurture sequence: Day 7 (upgrade push) ───────────────────────────────────
+export async function sendNurtureDay7(
+  user: { id: string; email: string; name: string },
+  examDate?: string | null
+) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+  const examDateStr = examDate
+    ? new Date(examDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
+      to: user.email,
+      subject: 'Unlock unlimited SELT practice — £0.99/month, cancel anytime',
+      html: `
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Mock Test Platform</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 16px;">Hi ${firstName},</p>
+            <p style="color: #334155; margin: 0 0 16px;">You've been with us for a week now. We hope your SELT preparation is going well!</p>
+
+            ${examDateStr ? `
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px 18px; margin: 0 0 20px;">
+              <p style="margin: 0; font-size: 14px; color: #0369a1; font-weight: 600;">📅 Your exam is on ${examDateStr}</p>
+              <p style="margin: 6px 0 0; font-size: 13px; color: #334155;">Make sure you've practised enough sections before the real thing.</p>
+            </div>` : ''}
+
+            <p style="color: #334155; margin: 0 0 16px;">If you've used your 2 free tests, here's why our subscribers get better results:</p>
+
+            <div style="background: #f0f9ff; border-radius: 12px; overflow: hidden; margin: 0 0 24px;">
+              <div style="padding: 16px 20px; border-bottom: 1px solid #e0f2fe;">
+                <div style="display: flex; align-items: center;">
+                  <span style="font-size: 20px; margin-right: 12px;">🔄</span>
+                  <div>
+                    <p style="margin: 0; font-weight: 700; color: #0369a1; font-size: 14px;">Unlimited tests, all levels</p>
+                    <p style="margin: 2px 0 0; font-size: 13px; color: #64748b;">New random questions every test — A1 to C2</p>
+                  </div>
+                </div>
+              </div>
+              <div style="padding: 16px 20px; border-bottom: 1px solid #e0f2fe;">
+                <div style="display: flex; align-items: center;">
+                  <span style="font-size: 20px; margin-right: 12px;">📈</span>
+                  <div>
+                    <p style="margin: 0; font-weight: 700; color: #0369a1; font-size: 14px;">Track your improvement over time</p>
+                    <p style="margin: 2px 0 0; font-size: 13px; color: #64748b;">See scores trending up with each session</p>
+                  </div>
+                </div>
+              </div>
+              <div style="padding: 16px 20px;">
+                <div style="display: flex; align-items: center;">
+                  <span style="font-size: 20px; margin-right: 12px;">🤖</span>
+                  <div>
+                    <p style="margin: 0; font-weight: 700; color: #0369a1; font-size: 14px;">AI feedback on every response</p>
+                    <p style="margin: 2px 0 0; font-size: 13px; color: #64748b;">Know exactly what to improve</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Pricing box -->
+            <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); border-radius: 12px; padding: 20px 24px; margin: 0 0 24px; text-align: center;">
+              <p style="color: rgba(255,255,255,0.8); font-size: 13px; margin: 0 0 4px; text-transform: uppercase; letter-spacing: 1px;">Full access</p>
+              <p style="color: white; font-size: 32px; font-weight: 800; margin: 0 0 2px;">£0.99<span style="font-size: 16px; font-weight: 400;">/month</span></p>
+              <p style="color: rgba(255,255,255,0.75); font-size: 13px; margin: 0 0 16px;">That's about 3p per day. Less than a fraction of the real exam fee.</p>
+              <a href="https://seltmocktest.co.uk" style="background: white; color: #0891b2; padding: 12px 28px; border-radius: 10px; text-decoration: none; font-weight: 800; font-size: 15px; display: inline-block;">
+                Start Full Access →
+              </a>
+              <p style="color: rgba(255,255,255,0.6); font-size: 12px; margin: 12px 0 0;">Cancel anytime · 7-day money-back guarantee</p>
+            </div>
+
+            <p style="color: #64748b; font-size: 13px; margin: 0;">Questions? Email us at <a href="mailto:support@seltmocktest.co.uk" style="color: #0891b2;">support@seltmocktest.co.uk</a>.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+              SELT Mock Test · seltmocktest.co.uk<br>
+              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+            </p>
+          </div>
+        </div>
+      `,
+    });
+    await prisma.emailLog.create({
+      data: { userId: user.id, emailType: 'nurture_day7', metadata: {} },
+    });
+    console.log(`✓ Nurture day-7 sent to ${user.email}`);
+    return true;
+  } catch (err) {
+    console.error(`✗ Failed to send nurture day-7 to ${user.email}:`, err);
+    return false;
+  }
+}
+
 // ── Win-back email ────────────────────────────────────────────────────────────
 export async function sendWinBackEmail(user: { id: string; email: string; name: string }) {
   const firstName = user.name ? user.name.split(' ')[0] : 'there';
