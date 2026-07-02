@@ -364,3 +364,225 @@ export async function sendCancellationEmail(user: { id: string; email: string; n
     return false;
   }
 }
+
+// ── Post-test result email ────────────────────────────────────────────────────
+export async function sendTestCompletedEmail(
+  user: { id: string; email: string; name: string },
+  result: {
+    testId: string;
+    level: string;
+    listeningScore: number;
+    readingScore: number;
+    writingScore: number;
+    speakingScore: number;
+    overallScore: number;
+    duration?: number;
+  },
+  isSubscriber: boolean
+) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+
+  // Score colour helper
+  function scoreColour(s: number) {
+    if (s >= 75) return '#15803d';   // green
+    if (s >= 50) return '#b45309';   // amber
+    return '#b91c1c';                // red
+  }
+  function scoreBg(s: number) {
+    if (s >= 75) return '#f0fdf4';
+    if (s >= 50) return '#fffbeb';
+    return '#fef2f2';
+  }
+  function scoreBorder(s: number) {
+    if (s >= 75) return '#bbf7d0';
+    if (s >= 50) return '#fde68a';
+    return '#fecaca';
+  }
+  function scoreLabel(s: number) {
+    if (s >= 75) return '✅ Strong';
+    if (s >= 50) return '⚠️ Needs work';
+    return '❌ Focus here';
+  }
+
+  // Simple strength/weakness from scores
+  const scores: Record<string, number> = {
+    Listening: result.listeningScore,
+    Reading: result.readingScore,
+    Writing: result.writingScore,
+    Speaking: result.speakingScore,
+  };
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  const topSection = sorted[0][0];
+  const weakSection = sorted[sorted.length - 1][0];
+  const durationMin = result.duration ? Math.round(result.duration / 60) : null;
+
+  const sectionRow = (name: string, score: number) => `
+    <tr>
+      <td style="padding: 10px 12px; color: #334155; font-weight: 600; font-size: 14px;">${name}</td>
+      <td style="padding: 10px 12px; text-align: right;">
+        <span style="background: ${scoreBg(score)}; border: 1px solid ${scoreBorder(score)}; color: ${scoreColour(score)};
+          border-radius: 20px; padding: 3px 12px; font-size: 13px; font-weight: 700;">${score}%</span>
+      </td>
+      <td style="padding: 10px 12px; color: #64748b; font-size: 13px; text-align: right;">${scoreLabel(score)}</td>
+    </tr>`;
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
+      to: user.email,
+      subject: `Your SELT ${result.level} results — ${result.overallScore}% overall`,
+      html: `
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Your ${result.level.toUpperCase()} Mock Test Results</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 20px;">Hi ${firstName}, here are your results from your latest SELT ${result.level.toUpperCase()} mock test${durationMin ? ` (completed in ${durationMin} minutes)` : ''}.</p>
+
+            <!-- Overall score -->
+            <div style="background: ${scoreBg(result.overallScore)}; border: 2px solid ${scoreBorder(result.overallScore)};
+              border-radius: 12px; padding: 20px; margin: 0 0 24px; text-align: center;">
+              <p style="margin: 0 0 4px; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 1px;">Overall Score</p>
+              <p style="margin: 0; font-size: 40px; font-weight: 800; color: ${scoreColour(result.overallScore)};">${result.overallScore}%</p>
+              <p style="margin: 6px 0 0; font-size: 13px; color: ${scoreColour(result.overallScore)}; font-weight: 600;">
+                ${result.overallScore >= 75 ? '🎉 Excellent — you are well prepared!' : result.overallScore >= 50 ? '📈 Good progress — keep practising!' : '💪 Keep going — focus on weaker sections!'}
+              </p>
+            </div>
+
+            <!-- Section breakdown -->
+            <p style="color: #0f172a; font-weight: 700; margin: 0 0 8px;">Section Breakdown</p>
+            <table style="width: 100%; border-collapse: collapse; background: #f8fafc; border-radius: 10px; overflow: hidden; margin: 0 0 24px;">
+              <tbody>
+                ${sectionRow('🎧 Listening', result.listeningScore)}
+                <tr><td colspan="3" style="height: 1px; background: #e2e8f0; padding: 0;"></td></tr>
+                ${sectionRow('📖 Reading', result.readingScore)}
+                <tr><td colspan="3" style="height: 1px; background: #e2e8f0; padding: 0;"></td></tr>
+                ${sectionRow('✍️ Writing', result.writingScore)}
+                <tr><td colspan="3" style="height: 1px; background: #e2e8f0; padding: 0;"></td></tr>
+                ${sectionRow('🎤 Speaking', result.speakingScore)}
+              </tbody>
+            </table>
+
+            <!-- Quick SWOT-style insight -->
+            <div style="background: #f0f9ff; border-left: 4px solid #0891b2; border-radius: 0 8px 8px 0; padding: 14px 16px; margin: 0 0 24px;">
+              <p style="margin: 0 0 6px; font-weight: 700; color: #0369a1; font-size: 14px;">🔍 Quick Analysis</p>
+              <p style="margin: 0 0 4px; color: #334155; font-size: 13px;">
+                <strong>Strength:</strong> ${topSection} (${scores[topSection]}%) — your best section. Keep it sharp.
+              </p>
+              <p style="margin: 0; color: #334155; font-size: 13px;">
+                <strong>Focus area:</strong> ${weakSection} (${scores[weakSection]}%) — dedicate extra practice here before your real exam.
+              </p>
+            </div>
+
+            <!-- CTA -->
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 13px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">
+                🎲 Generate Another Test →
+              </a>
+            </div>
+
+            ${!isSubscriber ? `
+            <!-- Upsell for free users -->
+            <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 10px; padding: 16px 20px; margin: 0 0 16px; text-align: center;">
+              <p style="margin: 0 0 8px; font-weight: 700; color: #6b21a8; font-size: 14px;">🔓 Unlock unlimited practice</p>
+              <p style="margin: 0 0 12px; color: #7c3aed; font-size: 13px;">Keep practising with unlimited tests for just <strong>£0.99/month</strong>. Cancel anytime.</p>
+              <a href="https://seltmocktest.co.uk" style="background: #7c3aed; color: white; padding: 10px 22px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 13px; display: inline-block;">
+                Subscribe for £0.99/month →
+              </a>
+            </div>` : ''}
+
+            <p style="color: #64748b; font-size: 13px; margin: 0;">Log in anytime at <a href="https://seltmocktest.co.uk" style="color: #0891b2;">seltmocktest.co.uk</a> to review all your results and track your progress.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">SELT Mock Test · seltmocktest.co.uk</p>
+          </div>
+        </div>
+      `,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        userId: user.id,
+        emailType: 'test_completed',
+        metadata: { testId: result.testId, level: result.level, overallScore: result.overallScore },
+      },
+    });
+
+    console.log(`✓ Test result email sent to ${user.email} — ${result.level} ${result.overallScore}%`);
+    return true;
+  } catch (err) {
+    console.error(`✗ Failed to send test result email to ${user.email}:`, err);
+    return false;
+  }
+}
+
+// ── Win-back email ────────────────────────────────────────────────────────────
+export async function sendWinBackEmail(user: { id: string; email: string; name: string }) {
+  const firstName = user.name ? user.name.split(' ')[0] : 'there';
+
+  try {
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || 'noreply@seltmocktest.co.uk',
+      to: user.email,
+      subject: 'Still preparing for your SELT exam? Your free tests are still here 🎯',
+      html: `
+        <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; margin: 0 auto; background: #f8fafc;">
+          <div style="background: linear-gradient(135deg, #0891b2, #1d4ed8); padding: 28px 24px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="display: inline-block; background: rgba(255,255,255,0.15); border-radius: 10px; padding: 10px 18px; margin-bottom: 8px;">
+              <span style="font-size: 22px; font-weight: 800; color: white; letter-spacing: 2px;">SELT</span>
+            </div>
+            <p style="color: rgba(255,255,255,0.85); margin: 4px 0 0; font-size: 13px;">Mock Test Platform</p>
+          </div>
+          <div style="background: white; padding: 32px 24px; border-radius: 0 0 12px 12px; border: 1px solid #e2e8f0; border-top: none;">
+            <p style="color: #0f172a; margin: 0 0 16px;">Hi ${firstName},</p>
+            <p style="color: #334155; margin: 0 0 16px;">We noticed you haven't practised on SELT Mock Test recently. Your exam preparation journey isn't over — we're still here to help.</p>
+
+            <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px; padding: 16px 20px; margin: 0 0 20px;">
+              <p style="margin: 0 0 6px; font-weight: 700; color: #c2410c; font-size: 14px;">⚠️ Don't leave your SELT exam to chance</p>
+              <p style="margin: 0; color: #9a3412; font-size: 13px;">The real Skills for English test costs £150–170 and you only get one attempt per booking. Proper preparation is the difference between passing and rebooking.</p>
+            </div>
+
+            <p style="color: #334155; margin: 0 0 16px;">Your account is still active. Jump back in and:</p>
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 16px 20px; margin: 0 0 24px;">
+              <ul style="margin: 0; padding-left: 18px; color: #334155; font-size: 14px; line-height: 2;">
+                <li>Take a full 4-section mock test (Listening, Reading, Writing, Speaking)</li>
+                <li>Get AI scoring and feedback on every section</li>
+                <li>See exactly where to focus your remaining prep time</li>
+                <li>Unlimited practice for just <strong>£0.99/month</strong></li>
+              </ul>
+            </div>
+
+            <div style="text-align: center; margin: 28px 0;">
+              <a href="https://seltmocktest.co.uk" style="background: linear-gradient(135deg, #0891b2, #1d4ed8); color: white; padding: 13px 28px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 15px; display: inline-block;">
+                Resume Preparation →
+              </a>
+            </div>
+
+            <p style="color: #64748b; font-size: 13px; margin: 0 0 4px;">Questions or feedback? Reply to this email or contact us at <a href="mailto:support@seltmocktest.co.uk" style="color: #0891b2;">support@seltmocktest.co.uk</a>.</p>
+            <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
+            <p style="color: #94a3b8; font-size: 12px; text-align: center;">
+              SELT Mock Test · seltmocktest.co.uk<br>
+              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+            </p>
+          </div>
+        </div>
+      `,
+    });
+
+    await prisma.emailLog.create({
+      data: {
+        userId: user.id,
+        emailType: 'win_back',
+        metadata: {},
+      },
+    });
+
+    console.log(`✓ Win-back email sent to ${user.email}`);
+    return true;
+  } catch (err) {
+    console.error(`✗ Failed to send win-back email to ${user.email}:`, err);
+    return false;
+  }
+}

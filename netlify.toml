@@ -7,3 +7,23 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# ── Scheduled functions (cron jobs) ──────────────────────────────────────
+# Engagement nudge: runs daily at 10:00 UTC
+# The route checks x-cron-secret header OR ?secret= query param against CRON_SECRET env var.
+# Set CRON_SECRET in Netlify dashboard → Environment Variables, then pass it here.
+# Replace YOUR_CRON_SECRET_HERE with the value of your CRON_SECRET env var.
+[[crons]]
+  cron = "0 10 * * *"
+  path = "/api/cron/engagement-nudge"
+
+# Billing reminders: runs daily at 09:00 UTC
+[[crons]]
+  cron = "0 9 * * *"
+  path = "/api/cron/billing-reminders"
+
+# Win-back emails: runs weekly on Sundays at 11:00 UTC
+# Targets users signed up 30+ days ago with no active subscription
+[[crons]]
+  cron = "0 11 * * 0"
+  path = "/api/cron/win-back"

@@ -7,6 +7,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const email = body.email;
     const userId = body.userId;
+    // 'monthly' uses STRIPE_PRICE_ID, 'annual' uses STRIPE_ANNUAL_PRICE_ID
+    const plan: 'monthly' | 'annual' = body.plan === 'annual' ? 'annual' : 'monthly';
 
     // Support both email-based and userId-based lookup
     let user;
@@ -46,14 +48,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Create a Stripe Checkout Session for monthly subscription
+    // Resolve the correct Stripe Price ID based on the selected plan
+    const priceId = plan === 'annual'
+      ? (process.env.STRIPE_ANNUAL_PRICE_ID || process.env.STRIPE_PRICE_ID!)
+      : process.env.STRIPE_PRICE_ID!;
+
+    // Create a Stripe Checkout Session
     // No payment_method_types restriction — Stripe auto-detects card, Apple Pay, Google Pay
     const session = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: 'subscription',
       line_items: [
         {
-          price: process.env.STRIPE_PRICE_ID!,
+          price: priceId,
           quantity: 1,
         },
       ],
