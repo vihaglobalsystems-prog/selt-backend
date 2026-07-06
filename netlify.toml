@@ -5,10 +5,6 @@
 [build.environment]
   NODE_VERSION = "18"
 
-[functions]
-  # included_files ensures all files are bundled with functions
-  included_files = ["**"]
-
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
