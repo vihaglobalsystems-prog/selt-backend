@@ -6,13 +6,8 @@
   NODE_VERSION = "18"
 
 [functions]
-  # Increase timeout for cron/API functions to handle Neon cold starts (default is 10s)
+  # included_files ensures all files are bundled with functions
   included_files = ["**"]
-
-[[functions]]
-  path = "/api/cron/*"
-  [functions.response]
-    timeout = 30
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
