@@ -3,10 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { sendEngagementNudge } from '@/lib/email';
 
 async function runEngagementNudge(req: NextRequest) {
+  // Allow: correct CRON_SECRET header/param OR Netlify internal scheduler
   const cronSecret =
     req.headers.get('x-cron-secret') ||
     new URL(req.url).searchParams.get('secret');
-  if (cronSecret !== process.env.CRON_SECRET) {
+  const isNetlifyCron = req.headers.get('x-netlify-cron') === '1';
+  if (!isNetlifyCron && cronSecret !== process.env.CRON_SECRET) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
