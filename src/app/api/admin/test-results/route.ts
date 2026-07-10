@@ -72,9 +72,9 @@ export async function GET(req: NextRequest) {
       `,
     ]);
 
-    const passData   = passRate[0] || { pass_count: 0n, total_count: 0n };
-    const totalCount = Number(passData.total_count);
-    const passCount  = Number(passData.pass_count);
+    const passData   = passRate[0];
+    const totalCount = passData ? Number(passData.total_count) : 0;
+    const passCount  = passData ? Number(passData.pass_count)  : 0;
 
     return NextResponse.json({
       results: results.map(r => ({
