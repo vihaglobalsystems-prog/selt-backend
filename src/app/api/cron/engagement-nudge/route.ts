@@ -24,7 +24,7 @@ async function runEngagementNudge(req: NextRequest) {
     const candidates = await prisma.user.findMany({
       where: {
         createdAt: { lte: oneDayAgo },
-        subscriptions: { none: { status: 'active' } },
+        subscriptions: { none: { status: { in: ['active', 'trialing'] } } },
       },
       include: {
         testResults: { select: { id: true } },
