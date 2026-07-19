@@ -37,6 +37,7 @@ async function runNurture(req: NextRequest) {
         createdAt: { gte: h25ago, lte: h1ago },
         emailLogs: { none: { emailType: 'nurture_day1' } },
       },
+      include: { userProfile: { select: { profile: true } } },
     });
 
     // ── Day 3 ─────────────────────────────────────────────────────────────────
@@ -68,12 +69,15 @@ async function runNurture(req: NextRequest) {
     let sent1 = 0, sent3 = 0, sent7 = 0;
 
     for (const u of day1Candidates) {
+      const profile = (u.userProfile?.profile as Record<string, unknown>) || {};
+      if (profile.emailOptOut === true) { continue; }
       const ok = await sendNurtureDay1({ id: u.id, email: u.email, name: u.name });
       if (ok) sent1++;
     }
 
     for (const u of day3Candidates) {
       const profile = (u.userProfile?.profile as Record<string, unknown>) || {};
+      if (profile.emailOptOut === true) { continue; }
       const examDate = profile.examDate as string | undefined;
       const testCount = u.testResults.length; // rough proxy (1 = at least 1 test)
       const ok = await sendNurtureDay3(
@@ -86,6 +90,7 @@ async function runNurture(req: NextRequest) {
 
     for (const u of day7Candidates) {
       const profile = (u.userProfile?.profile as Record<string, unknown>) || {};
+      if (profile.emailOptOut === true) { continue; }
       const examDate = profile.examDate as string | undefined;
       const ok = await sendNurtureDay7(
         { id: u.id, email: u.email, name: u.name },

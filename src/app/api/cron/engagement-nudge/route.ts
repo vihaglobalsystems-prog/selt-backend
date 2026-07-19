@@ -28,6 +28,7 @@ async function runEngagementNudge(req: NextRequest) {
       },
       include: {
         testResults: { select: { id: true } },
+        userProfile: { select: { profile: true } },
         emailLogs: {
           where: {
             emailType: 'engagement_nudge',
@@ -42,6 +43,10 @@ async function runEngagementNudge(req: NextRequest) {
     let skipped = 0;
 
     for (const user of candidates) {
+      // Skip if opted out of marketing emails
+      const profile = (user.userProfile?.profile ?? {}) as Record<string, unknown>;
+      if (profile.emailOptOut === true) { skipped++; continue; }
+
       // Skip if nudged recently
       if (user.emailLogs.length > 0) {
         skipped++;

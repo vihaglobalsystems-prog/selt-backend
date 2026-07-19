@@ -282,7 +282,7 @@ export async function sendEngagementNudge(user: { id: string; email: string; nam
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">
               SELT Mock Test | seltmocktest.co.uk<br>
-              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe%20from%20SELT%20emails" style="color: #94a3b8;">Unsubscribe</a>
+              <a href="https://selt-backend.netlify.app/api/user/unsubscribe?email=${encodeURIComponent(user.email)}" style="color: #94a3b8;">Unsubscribe</a>
             </p>
           </div>
         </div>
@@ -577,7 +577,7 @@ export async function sendNurtureDay1(user: { id: string; email: string; name: s
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">
               SELT Mock Test · seltmocktest.co.uk<br>
-              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+              <a href="https://selt-backend.netlify.app/api/user/unsubscribe?email=${encodeURIComponent(user.email)}" style="color: #94a3b8;">Unsubscribe</a>
             </p>
           </div>
         </div>
@@ -657,7 +657,7 @@ export async function sendNurtureDay3(
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">
               SELT Mock Test · seltmocktest.co.uk<br>
-              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+              <a href="https://selt-backend.netlify.app/api/user/unsubscribe?email=${encodeURIComponent(user.email)}" style="color: #94a3b8;">Unsubscribe</a>
             </p>
           </div>
         </div>
@@ -754,7 +754,7 @@ export async function sendNurtureDay7(
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">
               SELT Mock Test · seltmocktest.co.uk<br>
-              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+              <a href="https://selt-backend.netlify.app/api/user/unsubscribe?email=${encodeURIComponent(user.email)}" style="color: #94a3b8;">Unsubscribe</a>
             </p>
           </div>
         </div>
@@ -817,7 +817,7 @@ export async function sendWinBackEmail(user: { id: string; email: string; name: 
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;">
             <p style="color: #94a3b8; font-size: 12px; text-align: center;">
               SELT Mock Test · seltmocktest.co.uk<br>
-              <a href="mailto:support@seltmocktest.co.uk?subject=Unsubscribe" style="color: #94a3b8;">Unsubscribe</a>
+              <a href="https://selt-backend.netlify.app/api/user/unsubscribe?email=${encodeURIComponent(user.email)}" style="color: #94a3b8;">Unsubscribe</a>
             </p>
           </div>
         </div>

@@ -31,6 +31,7 @@ async function runWinBack(req: NextRequest) {
         testResults: { some: {} },    // at least one test taken
       },
       include: {
+        userProfile: { select: { profile: true } },
         emailLogs: {
           where: {
             emailType: 'win_back',
@@ -45,6 +46,10 @@ async function runWinBack(req: NextRequest) {
     let skipped = 0;
 
     for (const user of candidates) {
+      // Skip if opted out of marketing emails
+      const profile = (user.userProfile?.profile ?? {}) as Record<string, unknown>;
+      if (profile.emailOptOut === true) { skipped++; continue; }
+
       // Skip if already had a win-back email in the last 60 days
       if (user.emailLogs.length > 0) {
         skipped++;
