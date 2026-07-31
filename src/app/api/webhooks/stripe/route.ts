@@ -71,20 +71,24 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
   }
 
   const stripeSubId = session.subscription as string;
-  const stripeSub = await stripe.subscriptions.retrieve(stripeSubId);
+  const stripeSub   = await stripe.subscriptions.retrieve(stripeSubId, { expand: ['latest_invoice'] });
 
-  await prisma.subscription.upsert({
+  // Use the actual price ID from the subscription (works for both monthly and annual)
+  const actualPriceId = stripeSub.items.data[0]?.price?.id ?? process.env.STRIPE_PRICE_ID ?? '';
+
+  const dbSub = await prisma.subscription.upsert({
     where: { stripeSubscriptionId: stripeSubId },
     create: {
       userId: user.id,
       stripeSubscriptionId: stripeSubId,
-      stripePriceId: process.env.STRIPE_PRICE_ID ?? '',
+      stripePriceId: actualPriceId,
       status: stripeSub.status,
       currentPeriodStart: new Date(stripeSub.current_period_start * 1000),
       currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
       cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
     },
     update: {
+      stripePriceId: actualPriceId,
       status: stripeSub.status,
       currentPeriodEnd: new Date(stripeSub.current_period_end * 1000),
       cancelAtPeriodEnd: stripeSub.cancel_at_period_end,
@@ -92,7 +96,27 @@ async function handleCheckoutComplete(session: Stripe.Checkout.Session) {
     },
   });
 
-  console.log(`✓ Subscription created for ${user.email} — ${stripeSubId}`);
+  // Record the initial payment from the checkout invoice
+  const invoice = stripeSub.latest_invoice as Stripe.Invoice | null;
+  if (invoice?.id && invoice.amount_paid > 0) {
+    await prisma.payment.upsert({
+      where: { stripeInvoiceId: invoice.id },
+      create: {
+        userId:               user.id,
+        subscriptionId:       dbSub.id,
+        stripeInvoiceId:      invoice.id,
+        stripePaymentIntent:  invoice.payment_intent as string ?? null,
+        amount:               invoice.amount_paid,
+        currency:             invoice.currency,
+        status:               'paid',
+        paidAt:               new Date(),
+      },
+      update: { status: 'paid', paidAt: new Date() },
+    });
+    console.log(`✓ Initial payment recorded for ${user.email} — £${(invoice.amount_paid / 100).toFixed(2)}`);
+  }
+
+  console.log(`✓ Subscription created for ${user.email} — ${stripeSubId} (${actualPriceId})`);
 
   await sendSubscriptionConfirmation({ id: user.id, email: user.email, name: user.name });
   await sendAdminNewSubscription({ id: user.id, email: user.email, name: user.name });
