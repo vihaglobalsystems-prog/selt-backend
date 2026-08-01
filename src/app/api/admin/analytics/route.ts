@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       monthlySubCount,
       annualSubCount,
       totalRefundAmount,
+      renewalsThisMonth,
     ] = await Promise.all([
       // Totals
       prisma.user.count(),
@@ -113,6 +114,19 @@ export async function GET(req: NextRequest) {
 
       // Total refunds
       prisma.refund.aggregate({ _sum: { amount: true } }),
+
+      // Active subscriptions renewing this calendar month (currentPeriodEnd in current month)
+      prisma.subscription.findMany({
+        where: {
+          status: { in: ['active', 'trialing'] },
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: {
+            gte: new Date(now.getFullYear(), now.getMonth(), 1),
+            lt:  new Date(now.getFullYear(), now.getMonth() + 1, 1),
+          },
+        },
+        select: { stripePriceId: true },
+      }),
     ]);
 
     // Build 30-day date range for charts
@@ -152,6 +166,14 @@ export async function GET(req: NextRequest) {
     const annualMonthlyEquivalent = annualPricePence / 12;
     const estimatedMRR = (monthlySubCount * monthlyPricePence + annualSubCount * annualMonthlyEquivalent) / 100;
 
+    // Estimated revenue this month = already collected + pending renewals this month
+    const pendingRenewalRevenue = renewalsThisMonth.reduce((sum, sub) => {
+      if (sub.stripePriceId === process.env.STRIPE_ANNUAL_PRICE_ID) return sum + annualPricePence;
+      return sum + monthlyPricePence;
+    }, 0) / 100;
+    const estimatedMonthRevenue = Math.round((mrr + pendingRenewalRevenue) * 100) / 100;
+    const renewalsThisMonthCount = renewalsThisMonth.length;
+
     return NextResponse.json({
       summary: {
         totalUsers,
@@ -163,6 +185,9 @@ export async function GET(req: NextRequest) {
         netRevenue,
         mrr,
         estimatedMRR: Math.round(estimatedMRR * 100) / 100,
+        estimatedMonthRevenue,
+        renewalsThisMonthCount,
+        collectedThisMonth: Math.round(mrr * 100) / 100,
         monthlySubCount,
         annualSubCount,
         avgScore: avgScoreResult._avg.percentage ? Number(avgScoreResult._avg.percentage).toFixed(1) : null,
