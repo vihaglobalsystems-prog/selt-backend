@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
   try {
     // Get all subscriptions that have a stripeSubscriptionId
     const subscriptions = await prisma.subscription.findMany({
-      where: { stripeSubscriptionId: { not: null } },
       include: { user: { select: { id: true, email: true, stripeCustomerId: true } } },
     });
 
