@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
 import { validateAdmin } from '@/lib/admin';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-06-20' });
 
 export async function GET(req: NextRequest) {
   const auth = validateAdmin(req);
@@ -35,6 +38,9 @@ export async function GET(req: NextRequest) {
       testsBySection,
       topUsers,
       canceledThisMonth,
+      monthlySubCount,
+      annualSubCount,
+      totalRefundAmount,
     ] = await Promise.all([
       // Totals
       prisma.user.count(),
@@ -96,6 +102,17 @@ export async function GET(req: NextRequest) {
           canceledAt: { gte: new Date(now.getFullYear(), now.getMonth(), 1) },
         },
       }),
+
+      // Monthly vs annual active subscriber counts
+      prisma.subscription.count({
+        where: { status: { in: ['active', 'trialing'] }, stripePriceId: process.env.STRIPE_PRICE_ID },
+      }),
+      prisma.subscription.count({
+        where: { status: { in: ['active', 'trialing'] }, stripePriceId: process.env.STRIPE_ANNUAL_PRICE_ID },
+      }),
+
+      // Total refunds
+      prisma.refund.aggregate({ _sum: { amount: true } }),
     ]);
 
     // Build 30-day date range for charts
@@ -112,9 +129,28 @@ export async function GET(req: NextRequest) {
     const dailySignups  = days.map(d => ({ date: d, count: signupMap[d]  || 0 }));
     const dailyRevenue  = days.map(d => ({ date: d, pence: revenueMap[d] || 0 }));
 
-    const totalRevenue = Number((totalRevenuePence._sum.amount || 0)) / 100;
-    const mrr          = Number((revenueThisMonth._sum.amount  || 0)) / 100;
-    const conversionRate = totalUsers > 0 ? ((premiumUsers / totalUsers) * 100).toFixed(1) : '0.0';
+    const totalRevenue    = Number((totalRevenuePence._sum.amount || 0)) / 100;
+    const mrr             = Number((revenueThisMonth._sum.amount  || 0)) / 100;
+    const totalRefunds    = Number((totalRefundAmount._sum.amount || 0)) / 100;
+    const netRevenue      = totalRevenue - totalRefunds;
+    const conversionRate  = totalUsers > 0 ? ((premiumUsers / totalUsers) * 100).toFixed(1) : '0.0';
+
+    // Fetch price amounts from Stripe for estimated MRR
+    let monthlyPricePence = 99; // £0.99 default
+    let annualPricePence  = 0;
+    try {
+      if (process.env.STRIPE_PRICE_ID) {
+        const mp = await stripe.prices.retrieve(process.env.STRIPE_PRICE_ID);
+        monthlyPricePence = mp.unit_amount ?? 99;
+      }
+      if (process.env.STRIPE_ANNUAL_PRICE_ID) {
+        const ap = await stripe.prices.retrieve(process.env.STRIPE_ANNUAL_PRICE_ID);
+        annualPricePence = ap.unit_amount ?? 0;
+      }
+    } catch { /* use defaults if Stripe lookup fails */ }
+
+    const annualMonthlyEquivalent = annualPricePence / 12;
+    const estimatedMRR = (monthlySubCount * monthlyPricePence + annualSubCount * annualMonthlyEquivalent) / 100;
 
     return NextResponse.json({
       summary: {
@@ -124,7 +160,11 @@ export async function GET(req: NextRequest) {
         usersToday,
         usersThisWeek,
         totalRevenue,
+        netRevenue,
         mrr,
+        estimatedMRR: Math.round(estimatedMRR * 100) / 100,
+        monthlySubCount,
+        annualSubCount,
         avgScore: avgScoreResult._avg.percentage ? Number(avgScoreResult._avg.percentage).toFixed(1) : null,
         totalTests,
         conversionRate,
