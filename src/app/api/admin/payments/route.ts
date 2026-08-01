@@ -22,7 +22,17 @@ export async function GET(req: NextRequest) {
         take: limit,
         orderBy: { createdAt: 'desc' },
         include: {
-          user: { select: { id: true, email: true, name: true, avatarUrl: true } },
+          user: {
+            select: {
+              id: true, email: true, name: true, avatarUrl: true,
+              subscriptions: {
+                where: { status: { in: ['active', 'trialing'] } },
+                select: { status: true, stripePriceId: true, currentPeriodEnd: true, cancelAtPeriodEnd: true },
+                take: 1,
+                orderBy: { createdAt: 'desc' },
+              },
+            },
+          },
           refunds: true,
         },
       }),
